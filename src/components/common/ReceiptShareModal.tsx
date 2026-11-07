@@ -99,53 +99,70 @@ export default function ReceiptShareModal({
         throw new Error('Receipt view is not ready');
       }
 
-      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-      const base64Image = await captureRef(receiptCardRef, {
+      // Small delay to ensure any offscreen rendering is settled
+      await new Promise((resolve) => setTimeout(resolve, 60));
+
+      const capturePromise = captureRef(receiptCardRef, {
         format: 'png',
         quality: 1.0,
-        result: 'base64',
+        result: 'tmpfile',
       });
+      const timeoutPromise = new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('Image capture timed out')), 10000)
+      );
+      const tmpUri = await Promise.race([capturePromise, timeoutPromise]);
 
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
       const filename = getExportFilename('Receipt_Card', biz, 'png');
       const targetUri = `${baseDir}${filename}`;
 
-      await FileSystem.writeAsStringAsync(targetUri, base64Image, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      try {
+        await FileSystem.copyAsync({ from: tmpUri, to: targetUri });
+      } catch {
+        // fallback
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(targetUri);
+      const shareFileUri = fileInfo.exists ? targetUri : tmpUri;
 
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(targetUri);
-          if (fileInfo.exists) {
-            onClose();
-            await Sharing.shareAsync(targetUri, {
+        onClose();
+        setTimeout(async () => {
+          try {
+            await Sharing.shareAsync(shareFileUri, {
               mimeType: 'image/png',
               dialogTitle: `Share Receipt Image - ${biz}`,
               UTI: 'public.png',
             });
-            return;
+          } catch (shareAsyncErr) {
+            console.warn('Sharing.shareAsync (image) failed, falling back to Share.share:', shareAsyncErr);
           }
-        } catch (shareAsyncErr) {
-          console.warn('Sharing.shareAsync (image) failed, falling back to Share.share:', shareAsyncErr);
-        }
+        }, 180);
+        return;
       }
 
       const routeInfo = hasRoute ? `\nRoute: ${pickup || '--'} to ${dropoff || '--'}` : '';
       const shareMsg = `Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}${routeInfo}`;
       onClose();
-      await Share.share(
-        Platform.OS === 'ios'
-          ? {
-              title: `Receipt Image - ${biz}`,
-              message: shareMsg,
-              url: targetUri,
-            }
-          : {
-              title: `Receipt Image - ${biz}`,
-              message: shareMsg,
-            }
-      );
+      setTimeout(async () => {
+        try {
+          await Share.share(
+            Platform.OS === 'ios'
+              ? {
+                  title: `Receipt Image - ${biz}`,
+                  message: shareMsg,
+                  url: shareFileUri,
+                }
+              : {
+                  title: `Receipt Image - ${biz}`,
+                  message: shareMsg,
+                }
+          );
+        } catch (e) {
+          console.warn('Share.share failed:', e);
+        }
+      }, 180);
     } catch (error) {
       console.error('Error sharing receipt image:', error);
       showAlert({
@@ -170,7 +187,7 @@ export default function ReceiptShareModal({
         throw new Error('Receipt or Ad view is not ready');
       }
 
-      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
 
       if (bannerUrl) {
         try {
@@ -179,19 +196,26 @@ export default function ReceiptShareModal({
           console.warn('Ad banner prefetch error:', e);
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
-      const receiptBase64 = await captureRef(receiptCardRef, {
+      const captureReceipt = captureRef(receiptCardRef, {
         format: 'png',
         quality: 1.0,
         result: 'base64',
       });
-
-      const adBase64 = await captureRef(adBannerCardRef, {
+      const captureAd = captureRef(adBannerCardRef, {
         format: 'png',
         quality: 1.0,
         result: 'base64',
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Animated card capture timed out')), 12000)
+      );
+
+      const [receiptBase64, adBase64] = await Promise.race([
+        Promise.all([captureReceipt, captureAd]),
+        timeoutPromise,
+      ]);
 
       const filename = getExportFilename('Animated_Receipt', biz, 'gif');
       const targetUri = `${baseDir}${filename}`;
@@ -205,36 +229,41 @@ export default function ReceiptShareModal({
 
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(targetUri);
-          if (fileInfo.exists) {
-            onClose();
+        onClose();
+        setTimeout(async () => {
+          try {
             await Sharing.shareAsync(targetUri, {
               mimeType: 'image/gif',
               dialogTitle: `Share Animated Receipt - ${biz}`,
               UTI: 'com.compuserve.gif',
             });
-            return;
+          } catch (shareAsyncErr) {
+            console.warn('Sharing.shareAsync (gif) failed, falling back to Share.share:', shareAsyncErr);
           }
-        } catch (shareAsyncErr) {
-          console.warn('Sharing.shareAsync (gif) failed, falling back to Share.share:', shareAsyncErr);
-        }
+        }, 180);
+        return;
       }
 
       const shareMsg = `Animated Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}`;
       onClose();
-      await Share.share(
-        Platform.OS === 'ios'
-          ? {
-              title: `Animated Receipt - ${biz}`,
-              message: shareMsg,
-              url: targetUri,
-            }
-          : {
-              title: `Animated Receipt - ${biz}`,
-              message: shareMsg,
-            }
-      );
+      setTimeout(async () => {
+        try {
+          await Share.share(
+            Platform.OS === 'ios'
+              ? {
+                  title: `Animated Receipt - ${biz}`,
+                  message: shareMsg,
+                  url: targetUri,
+                }
+              : {
+                  title: `Animated Receipt - ${biz}`,
+                  message: shareMsg,
+                }
+          );
+        } catch (e) {
+          console.warn('Share.share failed:', e);
+        }
+      }, 180);
     } catch (error) {
       console.error('Error sharing animated receipt:', error);
       showAlert({
@@ -256,67 +285,71 @@ export default function ReceiptShareModal({
       setSharingFormat('pdf');
 
       const html = await generateReceiptHtml(receiptInput);
-      const { uri, base64 } = await Print.printToFileAsync({
+      const printPromise = Print.printToFileAsync({
         html,
-        base64: true,
+        base64: false,
       });
+      const timeoutPromise = new Promise<{ uri: string }>((_, reject) =>
+        setTimeout(() => reject(new Error('PDF generation timed out')), 12000)
+      );
+      const { uri } = await Promise.race([printPromise, timeoutPromise]);
 
-      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
       const filename = getExportFilename('Receipt', biz, 'pdf');
       const targetUri = `${baseDir}${filename}`;
 
-      if (base64) {
-        await FileSystem.writeAsStringAsync(targetUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } else if (uri) {
-        try {
-          await FileSystem.copyAsync({ from: uri, to: targetUri });
-        } catch {
-          const b64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          await FileSystem.writeAsStringAsync(targetUri, b64, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-        }
+      try {
+        await FileSystem.copyAsync({ from: uri, to: targetUri });
+      } catch {
+        // fallback
       }
+
+      const fileInfo = await FileSystem.getInfoAsync(targetUri);
+      const shareFileUri = fileInfo.exists ? targetUri : uri;
 
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        try {
-          onClose();
-          await Sharing.shareAsync(targetUri, {
-            mimeType: 'application/pdf',
-            dialogTitle: `Share Receipt - ${biz}`,
-            UTI: 'com.adobe.pdf',
-          });
-          return;
-        } catch (shareErr) {
-          console.warn('Sharing.shareAsync failed, trying Share.share:', shareErr);
-        }
+        onClose();
+        setTimeout(async () => {
+          try {
+            await Sharing.shareAsync(shareFileUri, {
+              mimeType: 'application/pdf',
+              dialogTitle: `Share Receipt - ${biz}`,
+              UTI: 'com.adobe.pdf',
+            });
+          } catch (shareErr) {
+            console.warn('Sharing.shareAsync failed, trying Share.share:', shareErr);
+          }
+        }, 180);
+        return;
       }
 
       const routeInfo = hasRoute ? `\nRoute: ${pickup || '--'} to ${dropoff || '--'}` : '';
       const shareMsg = `Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}${routeInfo}`;
       onClose();
-      await Share.share(
-        Platform.OS === 'ios'
-          ? {
-              title: `Receipt - ${biz}`,
-              message: shareMsg,
-              url: targetUri,
-            }
-          : {
-              title: `Receipt - ${biz}`,
-              message: shareMsg,
-            }
-      );
+      setTimeout(async () => {
+        try {
+          await Share.share(
+            Platform.OS === 'ios'
+              ? {
+                  title: `Receipt - ${biz}`,
+                  message: shareMsg,
+                  url: shareFileUri,
+                }
+              : {
+                  title: `Receipt - ${biz}`,
+                  message: shareMsg,
+                }
+          );
+        } catch (e) {
+          console.warn('Share.share failed:', e);
+        }
+      }, 180);
     } catch (error) {
       console.error('Error sharing receipt:', error);
       showAlert({
         title: 'Error',
-        message: 'Unable to share receipt.',
+        message: 'Unable to share receipt PDF. Please try again.',
         type: 'danger',
       });
       onClose();
@@ -505,7 +538,7 @@ export default function ReceiptShareModal({
         )}
       </View>
 
-      {/* ── SHARE FORMAT SELECTION MODAL ── */}
+      {/* ── SHARE FORMAT SELECTION MODAL CONTENT ── */}
       <Modal
         visible={visible}
         transparent

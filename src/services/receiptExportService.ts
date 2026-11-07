@@ -83,7 +83,6 @@ export function formatReceiptAmount(amount: number | string): {
  */
 export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<string> {
   let taxiLogoUri: string | null = null;
-  let sePayLogoUri: string | null = null;
 
   try {
     taxiLogoUri = await getAssetDataUri(
@@ -94,19 +93,10 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     // fallback
   }
 
-  try {
-    sePayLogoUri = await getAssetDataUri(
-      require('../../assets/SE-pay-logo-gif.gif'),
-      'image/gif'
-    );
-  } catch {
-    // fallback
-  }
-
-  const biz = input.businessName || 'Business';
+  const biz = input.businessName || '--';
   const logoUrl = normalizeImageUrl(input.businessLogo);
-  const abnVal = input.abn || '19113303849';
-  const phoneVal = input.phone || '9113303849';
+  const abnVal = input.abn || '--';
+  const phoneVal = input.phone || '--';
   const isTaxi = Boolean(input.isTaxi || input.taxiNumber);
   const taxiNo = input.taxiNumber || '';
   const dcNo = input.dcNumber || '';
@@ -269,7 +259,7 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
       <div class="footer">
         <div class="thank-you">THANK YOU FOR CHOOSING ${isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}</div>
         <div class="powered-by">POWERED BY</div>
-        ${sePayLogoUri ? `<img class="se-pay-gif-logo" src="${sePayLogoUri}" alt="SE PAY" />` : '<div style="font-weight: 800; font-size: 12px; color: #0F172A;">SE PAY</div>'}
+        <div style="font-weight: 900; font-size: 13px; color: #0F172A; letter-spacing: 1.5px; text-align: center;">SE PAY</div>
       </div>
     </div>
 
@@ -333,7 +323,7 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     <div class="footer">
       <div class="thank-you">THANK YOU FOR CHOOSING ${isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}</div>
       <div class="powered-by">POWERED BY</div>
-      ${sePayLogoUri ? `<img class="se-pay-gif-logo" src="${sePayLogoUri}" alt="SE PAY" />` : '<div style="font-weight: 800; font-size: 12px; color: #0F172A;">SE PAY</div>'}
+      <div style="font-weight: 900; font-size: 13px; color: #0F172A; letter-spacing: 1.5px; text-align: center;">SE PAY</div>
     </div>
   </div>
   `}
@@ -451,33 +441,25 @@ export async function printShiftSlip(input: ShiftSlipInput): Promise<void> {
  */
 export async function shareShiftSlip(input: ShiftSlipInput): Promise<void> {
   const html = generateShiftSlipHtml(input);
-  const { uri, base64 } = await Print.printToFileAsync({ html, base64: true });
-  const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   const shiftCode = input.displayShiftCode || 'SHIFT';
   const fileName = `Shift_Report_${shiftCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.pdf`;
   const targetUri = `${baseDir}${fileName}`;
 
-  if (base64) {
-    await FileSystem.writeAsStringAsync(targetUri, base64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-  } else if (uri) {
-    try {
-      await FileSystem.copyAsync({ from: uri, to: targetUri });
-    } catch {
-      const b64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      await FileSystem.writeAsStringAsync(targetUri, b64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-    }
+  try {
+    await FileSystem.copyAsync({ from: uri, to: targetUri });
+  } catch {
+    // fallback
   }
+
+  const fileInfo = await FileSystem.getInfoAsync(targetUri);
+  const shareFileUri = fileInfo.exists ? targetUri : uri;
 
   const isAvailable = await Sharing.isAvailableAsync();
   if (isAvailable) {
     try {
-      await Sharing.shareAsync(targetUri, {
+      await Sharing.shareAsync(shareFileUri, {
         mimeType: 'application/pdf',
         dialogTitle: `Share Shift Report ${shiftCode}`,
         UTI: 'com.adobe.pdf',
@@ -488,13 +470,13 @@ export async function shareShiftSlip(input: ShiftSlipInput): Promise<void> {
     }
   }
 
-  const shareMsg = `Shift Report: ${input.businessName || 'Business'}\nShift: ${shiftCode}\nTotal: ${input.totalAmount || '$0.00'}\nStaff: ${input.staffName || '--'}`;
+  const shareMsg = `Shift Report: ${input.businessName || '--'}\nShift: ${shiftCode}\nTotal: ${input.totalAmount || '$0.00'}\nStaff: ${input.staffName || '--'}`;
   await Share.share(
     Platform.OS === 'ios'
       ? {
           title: `Shift Report ${shiftCode}`,
           message: shareMsg,
-          url: targetUri,
+          url: shareFileUri,
         }
       : {
           title: `Shift Report ${shiftCode}`,

@@ -1,29 +1,48 @@
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
 
+const assetDataUriCache = new Map<number, string>();
+
 /**
  * Loads any local bundled asset (GIF, PNG, JPG) at runtime and converts
  * it into a self-contained base64 data URI for sharing or PDF rendering.
  *
  * This avoids storing large multi-megabyte base64 strings in TypeScript files.
+ * Includes in-memory caching and a 2.5-second safety timeout so it never hangs.
  */
 export async function getAssetDataUri(assetModule: number, mimeType: string): Promise<string> {
+  if (assetDataUriCache.has(assetModule)) {
+    return assetDataUriCache.get(assetModule)!;
+  }
+
   try {
-    const asset = Asset.fromModule(assetModule);
-    if (!asset.localUri) {
-      await asset.downloadAsync();
+    const resolvePromise = (async (): Promise<string> => {
+      const asset = Asset.fromModule(assetModule);
+      if (!asset.localUri) {
+        await asset.downloadAsync();
+      }
+      let localPath = asset.localUri;
+      if (!localPath && asset.uri && !asset.uri.startsWith('http')) {
+        localPath = asset.uri;
+      }
+      if (!localPath) {
+        return '';
+      }
+      const base64 = await FileSystem.readAsStringAsync(localPath, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:${mimeType};base64,${base64}`;
+    })();
+
+    const timeoutPromise = new Promise<string>((resolve) =>
+      setTimeout(() => resolve(''), 2500)
+    );
+
+    const result = await Promise.race([resolvePromise, timeoutPromise]);
+    if (result) {
+      assetDataUriCache.set(assetModule, result);
     }
-    let localPath = asset.localUri;
-    if (!localPath && asset.uri && !asset.uri.startsWith('http')) {
-      localPath = asset.uri;
-    }
-    if (!localPath) {
-      return '';
-    }
-    const base64 = await FileSystem.readAsStringAsync(localPath, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return `data:${mimeType};base64,${base64}`;
+    return result;
   } catch (error) {
     console.warn('Failed to resolve asset base64 URI:', error);
     return '';
