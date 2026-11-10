@@ -26,7 +26,11 @@ import {
   shiftService,
   onShiftChange,
 } from '../../../services/shiftService';
-import { dashboardService } from '../../../services/dashboardService';
+import {
+  dashboardService,
+  getCachedDashboardData,
+  getCachedDashboardHeader,
+} from '../../../services/dashboardService';
 import {
   formatSubmittedDate,
   formatSydneyToUserTime,
@@ -211,8 +215,34 @@ export default function TaxiDriverProfileScreen() {
     .join('')
     .toUpperCase() || 'U';
 
-  const taxiNumber = u?.taxi_no || u?.employee_code || user.taxiNumber || '';
-  const dcNumber = u?.dc_number || '';
+  // Taxi number: strictly use assigned taxi_no, never fall back to employee_code
+  const cachedDash = getCachedDashboardData();
+  const cachedHeader = getCachedDashboardHeader();
+
+  const rawTaxiNo =
+    u?.taxi_no !== undefined && u?.taxi_no !== null
+      ? u.taxi_no
+      : cachedHeader?.taxi_no !== undefined && cachedHeader?.taxi_no !== null
+        ? cachedHeader.taxi_no
+        : cachedDash?.taxi_no !== undefined && cachedDash?.taxi_no !== null
+          ? cachedDash.taxi_no
+          : cachedHeader?.identifier_type === 'taxi_no'
+            ? cachedHeader?.identifier_value
+            : null;
+
+  const displayTaxiNumber =
+    rawTaxiNo !== null &&
+    rawTaxiNo !== undefined &&
+    String(rawTaxiNo).trim() !== '' &&
+    String(rawTaxiNo).trim() !== '--'
+      ? String(rawTaxiNo).trim()
+      : '';
+
+  const taxiNumber = displayTaxiNumber;
+  const dcNumber =
+    u?.dc_number ||
+    (cachedHeader?.identifier_type === 'dc_number' ? cachedHeader.identifier_value : '') ||
+    '';
   const abn = u?.abn || '';
   const phone = u?.phone_no || '';
   const email = u?.email || '';
@@ -337,6 +367,16 @@ export default function TaxiDriverProfileScreen() {
         },
       });
     } else {
+      if (!displayTaxiNumber) {
+        showAlert({
+          title: 'Taxi Registration Required',
+          message:
+            'Please register yourself as a driver to obtain an assigned taxi number before starting a shift.',
+          type: 'warning',
+          icon: 'alert-circle-outline',
+        });
+        return;
+      }
       setIsShiftActionLoading(true);
       try {
         const res = await shiftService.startShift();
@@ -644,33 +684,76 @@ export default function TaxiDriverProfileScreen() {
             </View>
           </View>
 
-          {/* ── End / Start Shift Button (Black) ── */}
-          <TouchableOpacity
-            style={[
-              styles.endShiftBtn,
-              !isOnShift && styles.startShiftBtn,
-              isShiftActionLoading && { opacity: 0.7 },
-            ]}
-            onPress={handleToggleShift}
-            disabled={isShiftActionLoading}
-            activeOpacity={0.85}
-          >
-            {isShiftActionLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <>
-                <Feather
-                  name={isOnShift ? 'log-out' : 'log-in'}
-                  size={17}
-                  color="#FFFFFF"
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={styles.endShiftBtnText}>
-                  {isOnShift ? session?.end_button_title || 'End Shift' : 'Start Shift'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* ── Shift Action Button (Start / End / Register Driver) ── */}
+          {isOnShift ? (
+            <TouchableOpacity
+              style={[
+                styles.endShiftBtn,
+                isShiftActionLoading && { opacity: 0.7 },
+              ]}
+              onPress={handleToggleShift}
+              disabled={isShiftActionLoading}
+              activeOpacity={0.85}
+            >
+              {isShiftActionLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather
+                    name="log-out"
+                    size={17}
+                    color="#FFFFFF"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={styles.endShiftBtnText}>
+                    {session?.end_button_title || 'End Shift'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : displayTaxiNumber ? (
+            <TouchableOpacity
+              style={[
+                styles.endShiftBtn,
+                styles.startShiftBtn,
+                isShiftActionLoading && { opacity: 0.7 },
+              ]}
+              onPress={handleToggleShift}
+              disabled={isShiftActionLoading}
+              activeOpacity={0.85}
+            >
+              {isShiftActionLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather
+                    name="log-in"
+                    size={17}
+                    color="#FFFFFF"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={styles.endShiftBtnText}>Start Shift</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.endShiftBtn,
+                styles.registerDriverBtn,
+              ]}
+              onPress={() => router.push('/add-driver')}
+              activeOpacity={0.85}
+            >
+              <Feather
+                name="user-plus"
+                size={17}
+                color="#FFFFFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.endShiftBtnText}>Register Your driver</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── DYNAMIC MENU OPTIONS (from API data.menu_options) ── */}
@@ -1487,6 +1570,9 @@ const styles = StyleSheet.create({
   },
   startShiftBtn: {
     backgroundColor: '#16A34A',
+  },
+  registerDriverBtn: {
+    backgroundColor: '#D97706',
   },
   endShiftBtnText: {
     color: '#FFFFFF',

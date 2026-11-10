@@ -27,6 +27,8 @@ import { addTransaction } from '../../services/transactionStore';
 import { paymentSession } from '../../services/paymentSession';
 import {
   dashboardService,
+  getCachedDashboardData,
+  getCachedDashboardHeader,
   getActiveShiftSessionId,
   getAllowedPaymentMethods,
   onAllowedPaymentMethodsChange,
@@ -295,6 +297,33 @@ export default function TapToPayEnterAmountScreen() {
 
   // Directly start a shift session for either Business Owner or Employee
   const handleStartShiftDirectly = async (): Promise<number | null> => {
+    const cachedDash = getCachedDashboardData();
+    const cachedHeader = getCachedDashboardHeader();
+    const rawTaxiNo =
+      cachedHeader?.taxi_no !== undefined
+        ? cachedHeader.taxi_no
+        : cachedDash?.taxi_no !== undefined
+          ? cachedDash.taxi_no
+          : cachedHeader?.identifier_type === 'taxi_no'
+            ? cachedHeader?.identifier_value
+            : null;
+    const hasTaxiNo =
+      rawTaxiNo !== null &&
+      rawTaxiNo !== undefined &&
+      String(rawTaxiNo).trim() !== '' &&
+      String(rawTaxiNo).trim() !== '--';
+
+    if (user?.loginType === 'taxi_business' && !hasTaxiNo) {
+      showAlert({
+        title: 'Taxi Registration Required',
+        message:
+          'Please register yourself as a driver to obtain an assigned taxi number before starting a shift.',
+        type: 'warning',
+        icon: 'alert-circle-outline',
+      });
+      return null;
+    }
+
     setIsStartingShift(true);
     try {
       const res = await shiftService.startShift();
