@@ -3,7 +3,9 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform, Share } from 'react-native';
 import { getAssetDataUri, normalizeImageUrl } from '../utils/assetUtils';
+import { formatSydneyToUserDateTime } from '../utils/dateUtils';
 import type { PaymentBreakDown } from './receiptService';
+import type { RecentTransactionItem } from './dashboardService';
 
 export interface UnifiedReceiptInput {
   businessName?: string;
@@ -338,6 +340,70 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
 export async function printReceipt(input: UnifiedReceiptInput): Promise<void> {
   const html = await generateReceiptHtml(input);
   await Print.printAsync({ html });
+}
+
+/**
+ * Maps a RecentTransactionItem (with its nested receipt payload) into a UnifiedReceiptInput for Reprint & Share
+ */
+export function buildReceiptInputFromRecentTxn(
+  txn: RecentTransactionItem,
+  fallbackBusinessName?: string,
+  fallbackUserName?: string,
+  isTaxiFallback: boolean = false
+): UnifiedReceiptInput {
+  const r = txn.receipt;
+  const isTaxi = Boolean(
+    r?.taxi_number ||
+    txn.pickup ||
+    txn.dropoff ||
+    txn.pickup_location ||
+    txn.drop_location ||
+    isTaxiFallback
+  );
+
+  const biz = r?.business_name || fallbackBusinessName || '--';
+  const logo = r?.business_logo || null;
+  const abnVal = r?.abn || '--';
+  const phoneVal = r?.phone_no || r?.phone || '--';
+  const numAmount = r?.amount !== undefined ? Number(r.amount) : Number(txn.amount);
+  const amountFmt = r?.amount_formatted || txn.amount_formatted || `$${numAmount.toFixed(2)}`;
+  const dt = r?.date_time ? formatSydneyToUserDateTime(r.date_time) : (txn.date || txn.created_at || '--');
+  const method = r?.payment_method || txn.payment_method_label || txn.payment_method || 'Card';
+  const paymentType = r?.payment_type || (method.toLowerCase().includes('cash') ? 'Cash' : method.toLowerCase().includes('tap') ? 'Tap & Go' : 'Card');
+  const cardBrand = r?.card_brand || undefined;
+  const paymentId = r?.payment_id || txn.txn_id || txn.transaction_id || (typeof txn.id === 'string' ? txn.id : `TXN-${txn.id}`);
+  const pickup = r?.pickup_location || txn.pickup || txn.pickup_location || txn.route?.pickup || '';
+  const dropoff = r?.drop_location || txn.dropoff || txn.dropoff_location || txn.route?.dropoff || '';
+  const taxiNo = r?.taxi_number || (isTaxi ? (txn as any).taxi_number : undefined);
+  const dcNo = r?.dc_number || undefined;
+  const address = r?.address || undefined;
+  const staffEmpId = r?.employee_id || undefined;
+  const staffName = fallbackUserName || undefined;
+
+  return {
+    businessName: biz,
+    businessLogo: logo,
+    abn: abnVal,
+    phone: phoneVal,
+    amount: numAmount,
+    amountFormatted: amountFmt,
+    dateTime: dt,
+    paymentMethod: method,
+    paymentType,
+    cardBrand,
+    paymentId,
+    isTaxi,
+    taxiNumber: taxiNo,
+    dcNumber: dcNo,
+    pickup,
+    dropoff,
+    address,
+    staffName,
+    staffEmpId,
+    hasAdBanner: Boolean(r?.ad_banner && r?.banner_image_url),
+    bannerImageUrl: r?.banner_image_url || null,
+    breakdown: r?.payment_break_down,
+  };
 }
 
 /**

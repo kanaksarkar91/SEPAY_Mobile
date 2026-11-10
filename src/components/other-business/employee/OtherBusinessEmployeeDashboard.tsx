@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import HeaderBar from '../../common/HeaderBar';
+import ReceiptShareModal from '../../common/ReceiptShareModal';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { paymentSession } from '../../../services/paymentSession';
@@ -23,6 +24,8 @@ import {
   RecentTransactionItem,
 } from '../../../services/dashboardService';
 import { shiftService, onShiftChange } from '../../../services/shiftService';
+import { receiptService } from '../../../services/receiptService';
+import { printReceipt, buildReceiptInputFromRecentTxn } from '../../../services/receiptExportService';
 import {
   formatSydneyToUserTime,
   formatSydneyShiftRange,
@@ -171,6 +174,67 @@ export default function OtherBusinessEmployeeDashboard({
     dashboardData?.recent_transactions || dashboardData?.recent_trips;
   const recentTxns: RecentTransactionItem[] =
     recentTxnsSection?.list || [];
+
+  // Reprint & Share Receipt State
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [isShareModalVisible, setIsShareModalVisible] = useState<boolean>(false);
+  const [selectedTxnForShare, setSelectedTxnForShare] = useState<RecentTransactionItem | null>(null);
+
+  const handleReprintReceipt = async (txn: RecentTransactionItem) => {
+    try {
+      setIsPrinting(true);
+      let targetTxn = txn;
+      if (!targetTxn.receipt) {
+        const pId = targetTxn.txn_id || targetTxn.transaction_id || String(targetTxn.id);
+        if (pId) {
+          try {
+            const fetchedReceipt = await receiptService.getReceipt(pId);
+            if (fetchedReceipt) {
+              targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
+            }
+          } catch {}
+        }
+      }
+      const receiptInput = buildReceiptInputFromRecentTxn(
+        targetTxn,
+        businessName,
+        userName,
+        false
+      );
+      await printReceipt(receiptInput);
+    } catch (error) {
+      console.warn('Print error or canceled:', error);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleShareReceipt = async (txn: RecentTransactionItem) => {
+    let targetTxn = txn;
+    if (!targetTxn.receipt) {
+      const pId = targetTxn.txn_id || targetTxn.transaction_id || String(targetTxn.id);
+      if (pId) {
+        try {
+          const fetchedReceipt = await receiptService.getReceipt(pId);
+          if (fetchedReceipt) {
+            targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
+          }
+        } catch {}
+      }
+    }
+    setSelectedTxnForShare(targetTxn);
+    setIsShareModalVisible(true);
+  };
+
+  const selectedShareReceiptInput = useMemo(() => {
+    if (!selectedTxnForShare) return null;
+    return buildReceiptInputFromRecentTxn(
+      selectedTxnForShare,
+      businessName,
+      userName,
+      false
+    );
+  }, [selectedTxnForShare, businessName, userName]);
 
   const handleCreateSale = () => {
     paymentSession.markPaymentCompleted();
@@ -605,38 +669,71 @@ export default function OtherBusinessEmployeeDashboard({
             const isTap = method.includes('tap') || method.includes('nfc');
 
             return (
-              <TouchableOpacity
+              <View
                 key={txn.id || index}
                 style={styles.txnCard}
-                activeOpacity={0.85}
-                onPress={handleNavigateToTransactions}
               >
-                <View style={styles.txnLeftWrap}>
-                  <Text style={styles.txnIdText}>{txnCode}</Text>
-                  <Text style={styles.txnTimeText}>{timeText}</Text>
-                  <View style={[styles.cardPill, isTap && styles.tapPill]}>
-                    <Ionicons
-                      name={isTap ? 'radio-outline' : 'card'}
-                      size={10}
-                      color={isTap ? '#EA580C' : '#2563EB'}
-                      style={{ marginRight: 3 }}
-                    />
-                    <Text style={[styles.cardPillText, isTap && styles.tapPillText]}>
-                      {txn.payment_method_label || (isTap ? 'Tap & Go' : 'Card')}
-                    </Text>
+                <TouchableOpacity
+                  style={styles.txnTopRow}
+                  activeOpacity={0.85}
+                  onPress={handleNavigateToTransactions}
+                >
+                  <View style={styles.txnLeftWrap}>
+                    <Text style={styles.txnIdText}>{txnCode}</Text>
+                    <Text style={styles.txnTimeText}>{timeText}</Text>
+                    <View style={[styles.cardPill, isTap && styles.tapPill]}>
+                      <Ionicons
+                        name={isTap ? 'radio-outline' : 'card'}
+                        size={10}
+                        color={isTap ? '#EA580C' : '#2563EB'}
+                        style={{ marginRight: 3 }}
+                      />
+                      <Text style={[styles.cardPillText, isTap && styles.tapPillText]}>
+                        {txn.payment_method_label || (isTap ? 'Tap & Go' : 'Card')}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <Text style={styles.txnAmount}>
-                  {txn.amount_formatted || `$${txn.amount?.toFixed(2) || '0.00'}`}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={styles.txnAmount}>
+                    {txn.amount_formatted || `$${txn.amount?.toFixed(2) || '0.00'}`}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Card Action Buttons: Reprint and Share */}
+                <View style={styles.cardActionsRow}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleReprintReceipt(txn)}
+                    activeOpacity={0.7}
+                    disabled={isPrinting}
+                  >
+                    <Feather name="printer" size={11} color="#334155" />
+                    <Text style={styles.actionButtonText}>Reprint</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleShareReceipt(txn)}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="share" size={11} color="#334155" />
+                    <Text style={styles.actionButtonText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             );
           })}
         </View>
 
         <View style={{ height: 28 }} />
       </ScrollView>
+
+      {/* Receipt Share Modal */}
+      <ReceiptShareModal
+        visible={isShareModalVisible}
+        onClose={() => setIsShareModalVisible(false)}
+        receiptInput={selectedShareReceiptInput}
+      />
     </View>
   );
 }
@@ -1110,9 +1207,6 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   txnCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
@@ -1125,6 +1219,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 3,
     elevation: 1,
+  },
+  txnTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    gap: 4,
+  },
+  actionButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
   },
   txnLeftWrap: {
     gap: 3,

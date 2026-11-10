@@ -116,6 +116,37 @@ export interface ActiveDriversSection {
   list: ActiveDriverItem[];
 }
 
+export interface RecentTransactionReceiptBreakdown {
+  payable_amount?: number;
+  base_amount?: number;
+  service_fee?: number;
+}
+
+export interface RecentTransactionReceipt {
+  business_name?: string;
+  business_logo?: string | null;
+  abn?: string;
+  phone_no?: string;
+  phone?: string;
+  address?: string;
+  employee_id?: string;
+  amount?: number;
+  amount_formatted?: string;
+  payment_status?: string;
+  date_time?: string;
+  payment_method?: string;
+  payment_type?: string;
+  card_brand?: string | null;
+  payment_id?: string;
+  ad_banner?: boolean;
+  banner_image_url?: string | null;
+  payment_break_down?: RecentTransactionReceiptBreakdown;
+  taxi_number?: string;
+  dc_number?: string;
+  pickup_location?: string;
+  drop_location?: string;
+}
+
 export interface RecentTransactionItem {
   id: number | string;
   txn_id?: string;
@@ -140,6 +171,7 @@ export interface RecentTransactionItem {
     pickup?: string;
     dropoff?: string;
   };
+  receipt?: RecentTransactionReceipt;
 }
 
 export interface RecentTransactionsSection {

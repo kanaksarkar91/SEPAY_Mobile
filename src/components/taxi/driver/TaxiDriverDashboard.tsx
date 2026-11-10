@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import HeaderBar from '../../common/HeaderBar';
+import ReceiptShareModal from '../../common/ReceiptShareModal';
 import { useAuth } from '../../../context/AuthContext';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { paymentSession } from '../../../services/paymentSession';
@@ -23,6 +24,8 @@ import {
   RecentTransactionItem,
 } from '../../../services/dashboardService';
 import { shiftService, onShiftChange } from '../../../services/shiftService';
+import { receiptService } from '../../../services/receiptService';
+import { printReceipt, buildReceiptInputFromRecentTxn } from '../../../services/receiptExportService';
 import { formatSydneyToUserTime, formatSydneyShiftRange } from '../../../utils/dateUtils';
 
 interface TaxiDriverDashboardProps {
@@ -194,6 +197,67 @@ export default function TaxiDriverDashboard({
     dashboardData?.recent_trips || dashboardData?.recent_transactions;
   const recentTrips: RecentTransactionItem[] =
     recentTripsSection?.list || [];
+
+  // Reprint & Share Receipt State
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [isShareModalVisible, setIsShareModalVisible] = useState<boolean>(false);
+  const [selectedTxnForShare, setSelectedTxnForShare] = useState<RecentTransactionItem | null>(null);
+
+  const handleReprintReceipt = async (txn: RecentTransactionItem) => {
+    try {
+      setIsPrinting(true);
+      let targetTxn = txn;
+      if (!targetTxn.receipt) {
+        const pId = targetTxn.txn_id || targetTxn.transaction_id || String(targetTxn.id);
+        if (pId) {
+          try {
+            const fetchedReceipt = await receiptService.getReceipt(pId);
+            if (fetchedReceipt) {
+              targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
+            }
+          } catch {}
+        }
+      }
+      const receiptInput = buildReceiptInputFromRecentTxn(
+        targetTxn,
+        businessName,
+        userName,
+        true
+      );
+      await printReceipt(receiptInput);
+    } catch (error) {
+      console.warn('Print error or canceled:', error);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleShareReceipt = async (txn: RecentTransactionItem) => {
+    let targetTxn = txn;
+    if (!targetTxn.receipt) {
+      const pId = targetTxn.txn_id || targetTxn.transaction_id || String(targetTxn.id);
+      if (pId) {
+        try {
+          const fetchedReceipt = await receiptService.getReceipt(pId);
+          if (fetchedReceipt) {
+            targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
+          }
+        } catch {}
+      }
+    }
+    setSelectedTxnForShare(targetTxn);
+    setIsShareModalVisible(true);
+  };
+
+  const selectedShareReceiptInput = useMemo(() => {
+    if (!selectedTxnForShare) return null;
+    return buildReceiptInputFromRecentTxn(
+      selectedTxnForShare,
+      businessName,
+      userName,
+      true
+    );
+  }, [selectedTxnForShare, businessName, userName]);
 
   const handleStartTaxiFare = () => {
     paymentSession.markPaymentCompleted();
@@ -675,68 +739,100 @@ export default function TaxiDriverDashboard({
             const hasRoute = Boolean(pickupText || dropoffText);
 
             return (
-              <TouchableOpacity
+              <View
                 key={txn.id || index}
                 style={styles.tripCard}
-                activeOpacity={0.85}
-                onPress={handleNavigateToTransactions}
               >
-                <View style={styles.tripHeaderRow}>
-                  <Text style={styles.tripIdText}>{txnCode}</Text>
-                  <Text style={styles.tripTimeText}>{timeText}</Text>
-                  <View
-                    style={[
-                      styles.cardPill,
-                      isTap && styles.tapPill,
-                      isCash && styles.cashPill,
-                    ]}
-                  >
-                    <Ionicons
-                      name={isCash ? 'cash-outline' : isTap ? 'radio-outline' : 'card'}
-                      size={11}
-                      color={isCash ? '#059669' : isTap ? '#EA580C' : '#2563EB'}
-                      style={{ marginRight: 3 }}
-                    />
-                    <Text
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={handleNavigateToTransactions}
+                >
+                  <View style={styles.tripHeaderRow}>
+                    <Text style={styles.tripIdText}>{txnCode}</Text>
+                    <Text style={styles.tripTimeText}>{timeText}</Text>
+                    <View
                       style={[
-                        styles.cardPillText,
-                        isTap && styles.tapPillText,
-                        isCash && styles.cashPillText,
+                        styles.cardPill,
+                        isTap && styles.tapPill,
+                        isCash && styles.cashPill,
                       ]}
                     >
-                      {txn.payment_method_label || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card')}
+                      <Ionicons
+                        name={isCash ? 'cash-outline' : isTap ? 'radio-outline' : 'card'}
+                        size={11}
+                        color={isCash ? '#059669' : isTap ? '#EA580C' : '#2563EB'}
+                        style={{ marginRight: 3 }}
+                      />
+                      <Text
+                        style={[
+                          styles.cardPillText,
+                          isTap && styles.tapPillText,
+                          isCash && styles.cashPillText,
+                        ]}
+                      >
+                        {txn.payment_method_label || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card')}
+                      </Text>
+                    </View>
+                    <View style={styles.spacer} />
+                    <Text style={styles.tripAmountText}>
+                      <Text style={styles.dollarOrange}>$</Text>
+                      {split.whole}
+                      <Text style={styles.tripCents}>{split.cents}</Text>
                     </Text>
                   </View>
-                  <View style={styles.spacer} />
-                  <Text style={styles.tripAmountText}>
-                    <Text style={styles.dollarOrange}>$</Text>
-                    {split.whole}
-                    <Text style={styles.tripCents}>{split.cents}</Text>
-                  </Text>
-                </View>
 
-                {hasRoute && (
-                  <View style={styles.routeContainer}>
-                    {pickupText && (
-                      <View style={styles.routePointRow}>
-                        <View style={[styles.routeDot, { backgroundColor: '#2563EB' }]} />
-                        <Text style={styles.routeAddressText}>{pickupText}</Text>
-                      </View>
-                    )}
-                    {pickupText && dropoffText && <View style={styles.routeConnector} />}
-                    {dropoffText && (
-                      <View style={styles.routePointRow}>
-                        <View style={[styles.routeDot, { backgroundColor: '#EA580C' }]} />
-                        <Text style={styles.routeAddressText}>{dropoffText}</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </TouchableOpacity>
+                  {hasRoute && (
+                    <View style={styles.routeContainer}>
+                      {pickupText && (
+                        <View style={styles.routePointRow}>
+                          <View style={[styles.routeDot, { backgroundColor: '#2563EB' }]} />
+                          <Text style={styles.routeAddressText}>{pickupText}</Text>
+                        </View>
+                      )}
+                      {pickupText && dropoffText && <View style={styles.routeConnector} />}
+                      {dropoffText && (
+                        <View style={styles.routePointRow}>
+                          <View style={[styles.routeDot, { backgroundColor: '#EA580C' }]} />
+                          <Text style={styles.routeAddressText}>{dropoffText}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Card Action Buttons: Reprint and Share */}
+                <View style={styles.cardActionsRow}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleReprintReceipt(txn)}
+                    activeOpacity={0.7}
+                    disabled={isPrinting}
+                  >
+                    <Feather name="printer" size={11} color="#334155" />
+                    <Text style={styles.actionButtonText}>Reprint</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleShareReceipt(txn)}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="share" size={11} color="#334155" />
+                    <Text style={styles.actionButtonText}>Share</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             );
           })}
         </View>
       </ScrollView>
+
+      {/* Receipt Share Modal */}
+      <ReceiptShareModal
+        visible={isShareModalVisible}
+        onClose={() => setIsShareModalVisible(false)}
+        receiptInput={selectedShareReceiptInput}
+      />
     </View>
   );
 }
@@ -1279,5 +1375,31 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '600',
     color: '#1E293B',
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
+    gap: 4,
+  },
+  actionButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
   },
 });
