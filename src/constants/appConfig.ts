@@ -12,7 +12,7 @@ import Constants from 'expo-constants';
  */
 export const APP_CONFIG = {
   appName: Constants.expoConfig?.name || 'SE Pay',
-  version: Constants.expoConfig?.version || '1.2',
+  version: Constants.expoConfig?.version || '1.3',
   get displayVersion(): string {
     return `VERSION ${this.version}`;
   },
