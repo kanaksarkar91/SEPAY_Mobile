@@ -22,6 +22,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import HeaderBar from '../../common/HeaderBar';
 import DateRangePickerModal from '../../common/DateRangePickerModal';
+import LiveBadge from '../../common/LiveBadge';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import {
   shiftService,
@@ -853,27 +854,32 @@ export default function OtherBusinessTransactionsScreen({
         }
         renderItem={({ item: shift }) => {
           const isUnpaid = shift.status === 'UNPAID';
+          const isLive = Boolean(shift.live);
           const { dateText, timeRangeText } = formatShiftRecordTime({
             start_at: shift.start_at,
             end_at: shift.end_at,
             time_range: shift.time_range,
             session_date: shift.session_date,
           });
+          const ongoingSuffix = isLive && !shift.end_at && !timeRangeText.includes('–') && !timeRangeText.includes('-') ? ' – Ongoing' : '';
 
           return (
             <TouchableOpacity
-              style={[styles.shiftCard, isUnpaid && styles.shiftCardUnpaid]}
+              style={[styles.shiftCard, isUnpaid && styles.shiftCardUnpaid, isLive && styles.shiftCardLive]}
               activeOpacity={0.88}
               onPress={() => handleShiftPress(shift)}
             >
-              {/* Card Header: Shift Code + Status Badge */}
+              {/* Card Header: Shift Code + Live Badge + Status Badge */}
               <View style={styles.cardHeaderRow}>
-                <Text
-                  style={[styles.shiftIdText, isUnpaid && styles.shiftIdTextUnpaid]}
-                  numberOfLines={1}
-                >
-                  {shift.display_shift_id}
-                </Text>
+                <View style={styles.shiftIdWrap}>
+                  <Text
+                    style={[styles.shiftIdText, isUnpaid && styles.shiftIdTextUnpaid]}
+                    numberOfLines={1}
+                  >
+                    {shift.display_shift_id}
+                  </Text>
+                  {isLive && <LiveBadge />}
+                </View>
 
                 {isUnpaid ? (
                   <View style={styles.unpaidBadge}>
@@ -913,7 +919,7 @@ export default function OtherBusinessTransactionsScreen({
                   ) : null}
 
                   <Text style={styles.shiftDateRangeText}>
-                    {dateText} • {timeRangeText}
+                    {dateText} • {timeRangeText}{ongoingSuffix}
                   </Text>
 
                   {/* Txns Badge + Total / Pending Amount */}
@@ -1698,17 +1704,29 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
     backgroundColor: '#FFFEFA',
   },
+  shiftCardLive: {
+    borderColor: '#6EE7B7',
+    backgroundColor: '#F8FEFB',
+  },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
+  shiftIdWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flex: 1,
+    marginRight: 8,
+  },
   shiftIdText: {
     fontSize: 12,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: 0.3,
+    flexShrink: 1,
   },
   shiftIdTextUnpaid: {
     color: '#0F172A',

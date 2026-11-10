@@ -146,6 +146,7 @@ export interface ShiftRecordItem {
   tap_and_go?: ShiftMethodBreakdown;
   cash?: ShiftMethodBreakdown;
   taxi_number?: string | null;
+  live?: boolean;
 }
 
 export interface ShiftPagination {
@@ -214,6 +215,7 @@ export interface ShiftDetailsInfo {
   is_paid: boolean;
   status: 'PAID' | 'UNPAID' | string;
   paid_date?: string | null;
+  live?: boolean;
 }
 
 export interface ShiftMetricItem {

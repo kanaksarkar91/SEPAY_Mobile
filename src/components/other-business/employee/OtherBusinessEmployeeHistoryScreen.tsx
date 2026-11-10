@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import HeaderBar from '../../common/HeaderBar';
 import DateRangePickerModal from '../../common/DateRangePickerModal';
+import LiveBadge from '../../common/LiveBadge';
 import {
   shiftService,
   ShiftHistoryData,
@@ -583,12 +584,14 @@ export default function OtherBusinessEmployeeHistoryScreen({
         }
         renderItem={({ item: shift }) => {
           const isPaid = shift.status === 'PAID';
+          const isLive = Boolean(shift.live);
           const { dateText, timeRangeText } = formatShiftRecordTime({
             start_at: shift.start_at,
             end_at: shift.end_at,
             time_range: shift.time_range,
             session_date: shift.session_date,
           });
+          const ongoingSuffix = isLive && !shift.end_at && !timeRangeText.includes('–') && !timeRangeText.includes('-') ? ' – Ongoing' : '';
 
           return (
             <TouchableOpacity
@@ -596,15 +599,19 @@ export default function OtherBusinessEmployeeHistoryScreen({
               style={[
                 styles.shiftCard,
                 !isPaid && styles.shiftCardUnpaid,
+                isLive && styles.shiftCardLive,
               ]}
               activeOpacity={0.88}
               onPress={() => handleCardPress(shift)}
             >
-              {/* Top Row: Shift ID + Status Badge */}
+              {/* Top Row: Shift ID + Live Badge + Status Badge */}
               <View style={styles.cardHeaderRow}>
-                <Text style={[styles.cardShiftId, !isPaid && styles.cardShiftIdUnpaid]}>
-                  {shift.display_shift_id}
-                </Text>
+                <View style={styles.shiftIdWrap}>
+                  <Text style={[styles.cardShiftId, !isPaid && styles.cardShiftIdUnpaid]}>
+                    {shift.display_shift_id}
+                  </Text>
+                  {isLive && <LiveBadge />}
+                </View>
 
                 {isPaid ? (
                   <View style={styles.paidBadge}>
@@ -644,7 +651,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
                   ) : null}
 
                   <Text style={styles.cardDateTime}>
-                    {dateText} • {timeRangeText}
+                    {dateText} • {timeRangeText}{ongoingSuffix}
                   </Text>
 
                   <View style={styles.txnsTotalRow}>
@@ -1071,16 +1078,28 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
     backgroundColor: '#FFFEFA',
   },
+  shiftCardLive: {
+    borderColor: '#6EE7B7',
+    backgroundColor: '#F8FEFB',
+  },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
+  shiftIdWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flex: 1,
+    marginRight: 8,
+  },
   cardShiftId: {
     fontSize: 12,
     fontWeight: '800',
     color: '#0F172A',
+    flexShrink: 1,
   },
   cardShiftIdUnpaid: {
     color: '#0F172A',

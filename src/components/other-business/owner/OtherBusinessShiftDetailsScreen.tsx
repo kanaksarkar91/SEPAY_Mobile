@@ -36,6 +36,7 @@ import {
   formatSydneyToUserDateTime,
   formatShiftRecordTime,
 } from '../../../utils/dateUtils';
+import LiveBadge from '../../common/LiveBadge';
 
 interface OtherBusinessShiftDetailsScreenProps {
   shiftId: string;
@@ -399,6 +400,7 @@ export default function OtherBusinessShiftDetailsScreen({
   const tapParts = formatAmountParts(shiftDetails?.metrics?.tap_and_go?.amount);
 
   const isPaid = Boolean(shiftDetails?.shift_info?.is_paid);
+  const isLive = Boolean(shiftDetails?.shift_info?.live ?? (shiftDetails as any)?.live);
 
   return (
     <View style={styles.root}>
@@ -475,9 +477,12 @@ export default function OtherBusinessShiftDetailsScreen({
                 </View>
               </View>
 
-              {/* Middle Row: Shift ID + Paid / Unpaid Badge */}
+              {/* Middle Row: Shift ID + Live Badge + Paid / Unpaid Badge */}
               <View style={styles.shiftIdStatusRow}>
-                <Text style={styles.shiftIdCode}>{headerTitle}</Text>
+                <View style={styles.shiftIdWrap}>
+                  <Text style={styles.shiftIdCode}>{headerTitle}</Text>
+                  {isLive && <LiveBadge />}
+                </View>
 
                 {isPaid ? (
                   <View style={styles.paidBadge}>
@@ -890,11 +895,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  shiftIdWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flex: 1,
+    marginRight: 8,
+  },
   shiftIdCode: {
     fontSize: 12.5,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: 0.2,
+    flexShrink: 1,
   },
   paidBadge: {
     flexDirection: 'row',

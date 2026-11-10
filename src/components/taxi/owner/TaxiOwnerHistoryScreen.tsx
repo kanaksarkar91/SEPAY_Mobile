@@ -15,6 +15,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import HeaderBar from '../../common/HeaderBar';
 import DateRangePickerModal from '../../common/DateRangePickerModal';
+import LiveBadge from '../../common/LiveBadge';
 import {
   shiftService,
   ShiftHistoryData,
@@ -299,17 +300,22 @@ export default function TaxiOwnerHistoryScreen({
   // Render Shift Record Card
   const renderShiftItem = ({ item: shift }: { item: ShiftRecordItem }) => {
     const isUnpaid = shift.is_paid === false || shift.status === 'UNPAID' || shift.status === 'unpaid';
+    const isLive = Boolean(shift.live);
     const shiftTime = formatShiftRecordTime(shift);
     const displayId = shift.display_shift_id || `SH#${shift.shift_id || shift.id}`;
     const taxiNo = shift.taxi_number || shift.employee_code || '';
+    const ongoingSuffix = isLive && !shift.end_at && !shiftTime.timeRangeText.includes('–') && !shiftTime.timeRangeText.includes('-') ? ' – Ongoing' : '';
 
     return (
-      <View style={[styles.shiftCard, isUnpaid && styles.shiftCardUnpaid]}>
-        {/* Header: Shift ID + Status Badge */}
+      <View style={[styles.shiftCard, isUnpaid && styles.shiftCardUnpaid, isLive && styles.shiftCardLive]}>
+        {/* Header: Shift ID + Live Badge + Status Badge */}
         <View style={styles.cardHeaderRow}>
-          <Text style={[styles.shiftIdText, isUnpaid && styles.shiftIdTextUnpaid]} numberOfLines={1}>
-            {displayId}
-          </Text>
+          <View style={styles.shiftIdWrap}>
+            <Text style={[styles.shiftIdText, isUnpaid && styles.shiftIdTextUnpaid]} numberOfLines={1}>
+              {displayId}
+            </Text>
+            {isLive && <LiveBadge />}
+          </View>
 
           {isUnpaid ? (
             <View style={styles.unpaidBadge}>
@@ -328,7 +334,7 @@ export default function TaxiOwnerHistoryScreen({
 
         {/* Date & Time Range */}
         <Text style={styles.dateRangeText}>
-          {shiftTime.dateText} • {shiftTime.timeRangeText}
+          {shiftTime.dateText} • {shiftTime.timeRangeText}{ongoingSuffix}
           {taxiNo ? ` • Taxi: ${taxiNo}` : ''}
         </Text>
 
@@ -883,18 +889,28 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
     backgroundColor: '#FEFDF8',
   },
+  shiftCardLive: {
+    borderColor: '#6EE7B7',
+    backgroundColor: '#F8FEFB',
+  },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
+  shiftIdWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    flex: 1,
+    marginRight: 8,
+  },
   shiftIdText: {
     fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
-    flex: 1,
-    marginRight: 8,
+    flexShrink: 1,
   },
   shiftIdTextUnpaid: {
     color: '#92400E',

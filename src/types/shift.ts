@@ -29,6 +29,7 @@ export interface ShiftRecord {
   tapAndGoCount: number; // e.g. 5
   tapAndGoAmount: number; // e.g. 165.00
   terminalId: string; // e.g. '#537384'
+  live?: boolean;
   transactions: ShiftTransaction[];
 }
 
