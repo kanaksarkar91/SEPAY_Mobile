@@ -294,6 +294,16 @@ export default function ProcessingScreen() {
             </Text>
           </View>
 
+          {/* Contextual guidance if amount is >= 100 or error indicates PIN/decline */}
+          {paymentMethod === 'tap' && (numericAmount >= 100 || /pin|limit|cvm|decline/i.test(errorReason || '')) && (
+            <View style={styles.pinHintBox}>
+              <Ionicons name="bulb-outline" size={16} color="#B45309" style={{ marginRight: 8, marginTop: 1 }} />
+              <Text style={styles.pinHintText}>
+                In Australia, physical card taps over $100–$200 may require a PIN or chip reader. Ask the customer to tap using Apple Pay or Google Wallet (no limit), or tap &quot;Pay with Card Instead&quot; below.
+              </Text>
+            </View>
+          )}
+
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.retryBtn} onPress={handleRetry} activeOpacity={0.85}>
               <Text style={styles.retryBtnText}>Try Again</Text>
@@ -522,6 +532,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
     lineHeight: 18,
+  },
+  pinHintBox: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    width: '100%',
+    alignItems: 'flex-start',
+  },
+  pinHintText: {
+    fontSize: 12.5,
+    color: '#92400E',
+    flex: 1,
+    lineHeight: 17,
   },
   actionRow: {
     flexDirection: 'row',

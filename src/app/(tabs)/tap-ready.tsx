@@ -12,6 +12,7 @@ import Svg, { Rect, Path, G, Defs, Filter, FeDropShadow } from 'react-native-svg
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useTerminal } from '../../context/TerminalContext';
 
 // ─── Tilted Phone + Card Tap Graphic Component ───
 const TapIllustration: React.FC = () => {
@@ -189,7 +190,8 @@ export default function TapReadyScreen() {
     dropoff_id?: string;
   }>();
 
-  const rawAmount = params.amount || '104.00';
+  const { initAndConnectSimulatedReader } = useTerminal();
+  const rawAmount = params.amount || '0';
   const numericAmount = parseFloat(rawAmount) || 0;
 
   // Format with commas: 1250 -> 1,250
@@ -202,6 +204,11 @@ export default function TapReadyScreen() {
       : rawAmount;
 
   const hasTriggeredRef = useRef(false);
+
+  // Pre-warm reader connection during the 700ms animation
+  useEffect(() => {
+    initAndConnectSimulatedReader().catch(() => {});
+  }, [initAndConnectSimulatedReader]);
 
   const handleProceedToProcess = useCallback(() => {
     if (hasTriggeredRef.current) return;
@@ -284,6 +291,15 @@ export default function TapReadyScreen() {
           Ask your customer to tap their card,{'\n'}phone or watch.
         </Text>
 
+        {numericAmount >= 100 && (
+          <View style={styles.limitNoticeWrap}>
+            <Ionicons name="information-circle-outline" size={14} color="#64748B" style={{ marginRight: 6 }} />
+            <Text style={styles.limitNoticeText}>
+              Physical cards over $100 may prompt PIN. Apple Pay & Google Wallet have no limit.
+            </Text>
+          </View>
+        )}
+
         {/* Tap Illustration (Tappable to simulate tap read) */}
         <TouchableOpacity
           activeOpacity={0.9}
@@ -365,6 +381,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     paddingHorizontal: 20,
+  },
+  limitNoticeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 10,
+    marginHorizontal: 16,
+  },
+  limitNoticeText: {
+    fontSize: 11,
+    color: '#64748B',
+    flex: 1,
+    lineHeight: 15,
   },
   footer: {
     paddingBottom: 8,

@@ -62,7 +62,7 @@ export default function LoginScreen() {
     }
   };
 
-  const _handleQuickCredentialLogin = async (
+  const handleQuickCredentialLogin = async (
     userVal: string,
     passVal: string
   ) => {
