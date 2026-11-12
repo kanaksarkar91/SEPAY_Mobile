@@ -366,14 +366,14 @@ function TaxiReceiptScreen() {
                   <Image
                     source={{ uri: logoUrl! }}
                     style={styles.logoImage}
-                    resizeMode="contain"
+                    resizeMode="cover"
                     onError={() => setFailedLogoUrl(logoUrl)}
                   />
                 ) : (
                   <Image
                     source={require('../../../assets/taxi-logo.png')}
                     style={styles.logoImage}
-                    resizeMode="contain"
+                    resizeMode="cover"
                   />
                 )}
               </View>
@@ -649,11 +649,12 @@ const styles = StyleSheet.create({
     borderColor: '#FDE047',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 4,
+    overflow: 'hidden',
   },
   logoImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
   bizName: {
     fontSize: 16.5,

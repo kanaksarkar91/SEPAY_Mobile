@@ -156,9 +156,9 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     .receipt-card-70 { flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; margin: 0 auto 10px; }
     .logo-badge {
       width: 46px; height: 46px; background: #FEF9C3; border: 1.2px solid #FDE047; border-radius: 12px;
-      margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 4px;
+      margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0;
     }
-    .logo-badge img { width: 100%; height: 100%; object-fit: contain; }
+    .logo-badge img { width: 100%; height: 100%; object-fit: cover; border-radius: 11px; display: block; }
     .biz-name { font-size: 16.5px; font-weight: 800; color: #0F172A; margin-bottom: 2px; }
     .tax-invoice-heading { font-size: 16px; font-weight: 900; color: #0F172A; letter-spacing: 2px; margin: 2px 0 4px; text-transform: uppercase; }
     .biz-meta { font-size: 10.5px; color: #64748B; font-weight: 600; }

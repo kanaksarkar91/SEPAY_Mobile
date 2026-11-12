@@ -530,6 +530,7 @@ export default function TaxiDriverProfileScreen() {
               <Image
                 source={{ uri: avatarUri }}
                 style={styles.avatarImage}
+                resizeMode="cover"
               />
             ) : (
               <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
@@ -541,13 +542,13 @@ export default function TaxiDriverProfileScreen() {
                 <Image
                   source={{ uri: effectiveLogoUrl }}
                   style={styles.taxiEmblemImage}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
               ) : (
                 <Image
                   source={require('../../../../assets/taxi-logo.png')}
                   style={styles.taxiEmblemImage}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
               )}
             </View>
@@ -1259,6 +1260,7 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: 14,
     backgroundColor: '#0F172A',
+    overflow: 'hidden',
   },
   avatarPlaceholder: {
     backgroundColor: '#FEF3C7',
@@ -1289,11 +1291,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 2,
     elevation: 2,
-    padding: 2,
+    overflow: 'hidden',
   },
   taxiEmblemImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
   bizCategoryText: {
     fontSize: 12,

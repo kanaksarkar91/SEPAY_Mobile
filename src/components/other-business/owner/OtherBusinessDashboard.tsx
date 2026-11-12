@@ -393,7 +393,7 @@ export default function OtherBusinessDashboard({
                 <Image
                   source={{ uri: (header?.logo_url || user?.logoUrl)! }}
                   style={styles.avatarBadgeImage}
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
               ) : (
                 <Feather name="briefcase" size={20} color="#D97706" />
@@ -485,7 +485,7 @@ export default function OtherBusinessDashboard({
                   <Image
                     source={{ uri: (user?.logoUrl || header?.logo_url)! }}
                     style={styles.crownBadgeImage}
-                    resizeMode="contain"
+                    resizeMode="cover"
                   />
                 ) : (
                   <Ionicons name="card-outline" size={22} color="#0F172A" />
@@ -894,7 +894,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    padding: 3,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -904,6 +903,7 @@ const styles = StyleSheet.create({
   avatarBadgeImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
   bannerTextBadge: {
     flexShrink: 1,
@@ -1073,7 +1073,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
     overflow: 'hidden',
-    padding: 3,
   },
   saleTextWrap: {
     flex: 1,
@@ -1538,6 +1537,6 @@ const styles = StyleSheet.create({
   crownBadgeImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 6,
+    borderRadius: 10,
   },
 });

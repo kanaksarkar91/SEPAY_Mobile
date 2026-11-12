@@ -11,7 +11,7 @@ import {
 import Svg, { Rect, Path, G, Defs, Filter, FeDropShadow } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useTerminal } from '../../context/TerminalContext';
 
 // ─── Tilted Phone + Card Tap Graphic Component ───
@@ -205,11 +205,6 @@ export default function TapReadyScreen() {
 
   const hasTriggeredRef = useRef(false);
 
-  // Pre-warm reader connection during the 700ms animation
-  useEffect(() => {
-    initAndConnectSimulatedReader().catch(() => {});
-  }, [initAndConnectSimulatedReader]);
-
   const handleProceedToProcess = useCallback(() => {
     if (hasTriggeredRef.current) return;
     hasTriggeredRef.current = true;
@@ -231,14 +226,23 @@ export default function TapReadyScreen() {
     });
   }, [rawAmount, params, router]);
 
-  useEffect(() => {
-    // Automatically proceed to payment processing without requiring an extra manual click
-    const timer = setTimeout(() => {
-      handleProceedToProcess();
-    }, 700);
+  useFocusEffect(
+    useCallback(() => {
+      // Reset trigger flag every time tap-ready gains focus (vital for 2nd, 3rd transactions)
+      hasTriggeredRef.current = false;
 
-    return () => clearTimeout(timer);
-  }, [handleProceedToProcess]);
+      // Pre-warm reader connection during the 700ms animation
+      initAndConnectSimulatedReader().catch(() => {});
+
+      const timer = setTimeout(() => {
+        handleProceedToProcess();
+      }, 700);
+
+      return () => {
+        clearTimeout(timer);
+      };
+    }, [handleProceedToProcess, initAndConnectSimulatedReader])
+  );
 
   const handleBack = () => {
     hasTriggeredRef.current = true;

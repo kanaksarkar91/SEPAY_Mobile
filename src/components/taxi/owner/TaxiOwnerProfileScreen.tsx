@@ -524,6 +524,7 @@ export default function TaxiOwnerProfileScreen() {
               <Image
                 source={{ uri: avatarUri }}
                 style={styles.avatarImage}
+                resizeMode="cover"
               />
             ) : (
               <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
@@ -1210,13 +1211,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#F59E0B',
     borderRadius: 16,
-    padding: 2,
+    overflow: 'hidden',
   },
   avatarImage: {
     width: 68,
     height: 68,
-    borderRadius: 13,
+    borderRadius: 14,
     backgroundColor: '#0F172A',
+    overflow: 'hidden',
   },
   avatarPlaceholder: {
     backgroundColor: '#FEF3C7',

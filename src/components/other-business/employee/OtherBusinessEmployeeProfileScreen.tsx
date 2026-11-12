@@ -365,7 +365,7 @@ export default function OtherBusinessEmployeeProfileScreen() {
                   <Image
                     source={{ uri: effectiveLogoUrl }}
                     style={styles.crownBadgeImg}
-                    resizeMode="contain"
+                    resizeMode="cover"
                   />
                 ) : (
                   <Feather name="briefcase" size={12} color="#D97706" />
@@ -645,6 +645,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#FEF08A',
     backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
   },
   crownBadgeWrap: {
     position: 'absolute',
@@ -663,11 +664,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
-    padding: 1,
+    overflow: 'hidden',
   },
   crownBadgeImg: {
     width: '100%',
     height: '100%',
+    borderRadius: 7,
   },
   brandTitle: {
     fontSize: 12,

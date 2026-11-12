@@ -453,7 +453,7 @@ export default function TaxiOwnerDashboard({
                   <Image
                     source={{ uri: (header?.logo_url || user?.logoUrl)! }}
                     style={styles.avatarLogo}
-                    resizeMode="contain"
+                    resizeMode="cover"
                   />
                 ) : (
                   <Text style={styles.avatarInitials}>{initials}</Text>
@@ -545,7 +545,7 @@ export default function TaxiOwnerDashboard({
                   <Image
                     source={{ uri: (user?.logoUrl || header?.logo_url)! }}
                     style={styles.taxiLogoImage}
-                    resizeMode="contain"
+                    resizeMode="cover"
                   />
                 ) : (
                   <MaterialCommunityIcons name="taxi" size={26} color="#0F172A" />
@@ -899,7 +899,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    padding: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -909,6 +908,7 @@ const styles = StyleSheet.create({
   avatarLogo: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
   avatarInitials: {
     fontSize: 17,
@@ -1059,7 +1059,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 14,
     overflow: 'hidden',
-    padding: 4,
   },
   taxiLogoImage: {
     width: '100%',

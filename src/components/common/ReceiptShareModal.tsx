@@ -370,13 +370,13 @@ export default function ReceiptShareModal({
               <Image
                 source={{ uri: logoUrl }}
                 style={styles.shareLogoImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             ) : (
               <Image
                 source={require('../../../assets/taxi-logo.png')}
                 style={styles.shareLogoImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             )}
           </View>
@@ -701,12 +701,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    padding: 4,
     marginBottom: 6,
   },
   shareLogoImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 12,
   },
   shareBizName: {
     fontSize: 16,

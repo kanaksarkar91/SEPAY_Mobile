@@ -391,8 +391,7 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const {
     useStripeTerminal,
-    requestNeededAndroidPermissions,
-  } = require('@stripe/stripe-terminal-react-native');
+    } = require('@stripe/stripe-terminal-react-native');
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -402,6 +401,8 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const discoveredReadersRef = useRef<Reader.Type[]>([]);
   const lastReaderErrorRef = useRef<string>('');
   const isPaymentInFlightRef = useRef(false);
+  const isCollectingRef = useRef(false);
+  const permissionsCheckedRef = useRef(false);
   const connectingPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const {
@@ -470,6 +471,24 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
     init();
   }, [initialize]);
 
+  const safeCancelCollectPaymentMethod = useCallback(async () => {
+    if (!isCollectingRef.current) {
+      return;
+    }
+    isCollectingRef.current = false;
+    try {
+      if (typeof cancelCollectPaymentMethod === 'function') {
+        appLogger.info('TERMINAL', 'Safely cancelling active payment method collection with timeout...');
+        await Promise.race([
+          cancelCollectPaymentMethod(),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      }
+    } catch (err: any) {
+      appLogger.warn('TERMINAL', 'safeCancelCollectPaymentMethod warning:', err?.message || err);
+    }
+  }, [cancelCollectPaymentMethod]);
+
   const checkIsReaderActuallyConnected = useCallback(async (): Promise<boolean> => {
     try {
       if (typeof getConnectionStatus === 'function') {
@@ -507,6 +526,16 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       const connectionTask = (async (): Promise<boolean> => {
         try {
+          // 0. Quick check: if not forcing reconnect and native SDK is ALREADY connected, return immediately!
+          if (!forceReconnect) {
+            const alreadyConnected = await checkIsReaderActuallyConnected();
+            if (alreadyConnected) {
+              appLogger.info('TERMINAL', 'Reader is ALREADY verified connected in native SDK (instant bypass)');
+              setStatusMessage('Reader ready');
+              return true;
+            }
+          }
+
           setIsConnecting(true);
           setErrorMessage(null);
           lastReaderErrorRef.current = '';
@@ -519,36 +548,42 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
             forceReconnect,
           });
 
-          // 1. Check and request Android permissions if on Android
-          if (Platform.OS === 'android') {
-            setStatusMessage('Checking device permissions...');
-            appLogger.info('TERMINAL', 'Checking & requesting Android permissions for Tap to Pay...');
+          // 1. Non-disruptive check: only request Android permissions once per session if missing
+          if (Platform.OS === 'android' && !permissionsCheckedRef.current) {
             try {
-              const permissionsToRequest: Permission[] = [
-                PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-                PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-              ];
+              const hasFineLoc = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+              const hasCoarseLoc = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION);
+              const hasAnyLocation = hasFineLoc || hasCoarseLoc;
+
+              const missingPermissions: Permission[] = [];
+              if (!hasAnyLocation) {
+                missingPermissions.push(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+                missingPermissions.push(PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION);
+              }
+
               if (typeof Platform.Version === 'number' && Platform.Version >= 31) {
                 if (PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN) {
-                  permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN);
+                  const hasScan = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN);
+                  if (!hasScan) missingPermissions.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN);
                 }
                 if (PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT) {
-                  permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
+                  const hasConn = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
+                  if (!hasConn) missingPermissions.push(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
                 }
               }
-              const permsResult = await PermissionsAndroid.requestMultiple(permissionsToRequest);
-              appLogger.info('TERMINAL', 'PermissionsAndroid.requestMultiple results:', permsResult);
 
-              if (typeof requestNeededAndroidPermissions === 'function') {
-                const permRes = await requestNeededAndroidPermissions();
-                appLogger.info('TERMINAL', 'requestNeededAndroidPermissions result:', permRes);
-                if (permRes?.error) {
-                  appLogger.warn('TERMINAL', 'requestNeededAndroidPermissions returned error:', permRes.error);
-                }
+              if (missingPermissions.length > 0) {
+                setStatusMessage('Checking device permissions...');
+                appLogger.info('TERMINAL', 'Requesting missing Android permissions:', missingPermissions);
+                const permsResult = await PermissionsAndroid.requestMultiple(missingPermissions);
+                appLogger.info('TERMINAL', 'PermissionsAndroid.requestMultiple results:', permsResult);
+              } else {
+                appLogger.info('TERMINAL', 'All needed Android permissions already granted.');
               }
+              permissionsCheckedRef.current = true;
             } catch (permEx: any) {
-              appLogger.warn('TERMINAL', 'Permission request exception:', permEx?.message || permEx);
-              console.warn('⚠️ Permission request error:', permEx);
+              appLogger.warn('TERMINAL', 'Permission check exception:', permEx?.message || permEx);
+              permissionsCheckedRef.current = true;
             }
           }
 
@@ -563,23 +598,6 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
               throw new Error(initErrText);
             }
             appLogger.info('TERMINAL', 'SDK initialize completed.');
-          }
-
-          // If not forcing reconnect, verify if native SDK is already connected and ready
-          if (!forceReconnect) {
-            const isActuallyConnected = await checkIsReaderActuallyConnected();
-            if (isActuallyConnected) {
-              appLogger.info('TERMINAL', 'Reader is verified connected in native SDK');
-              try {
-                if (typeof cancelCollectPaymentMethod === 'function') {
-                  await cancelCollectPaymentMethod();
-                }
-              } catch {
-                // ignore if no active collection
-              }
-              setStatusMessage('Reader ready');
-              return true;
-            }
           }
 
           // If native SDK is in a stale or non-connected state, ensure clean disconnect first
@@ -753,10 +771,8 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
   cancelDiscovering,
   connectReader,
   disconnectReader,
-  cancelCollectPaymentMethod,
   getConnectionStatus,
   checkIsReaderActuallyConnected,
-  requestNeededAndroidPermissions,
   supportsReadersOfType,
 ]);
 
@@ -878,22 +894,13 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (typeof getPaymentStatus === 'function') {
             const pStatus = await getPaymentStatus();
             appLogger.info('TERMINAL', `Native getPaymentStatus: "${pStatus}"`);
-            if (pStatus === 'waitingForInput' && typeof cancelCollectPaymentMethod === 'function') {
-              appLogger.info('TERMINAL', 'Cancelling previous waitingForInput collection...');
-              await cancelCollectPaymentMethod();
+            if (pStatus === 'waitingForInput') {
+              appLogger.info('TERMINAL', 'Clearing previous waitingForInput collection state...');
+              await safeCancelCollectPaymentMethod();
             }
           }
         } catch (pErr) {
           appLogger.warn('TERMINAL', 'getPaymentStatus check warning:', pErr);
-        }
-
-        // Before starting new collection, ensure any previous collection/intent is cancelled
-        try {
-          if (typeof cancelCollectPaymentMethod === 'function') {
-            await cancelCollectPaymentMethod();
-          }
-        } catch {
-          // ignore
         }
 
         setStatusMessage('Creating PaymentIntent on backend...');
@@ -923,14 +930,18 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
             : 'Ready for tap. Hold card against the back of your phone...'
         );
         appLogger.info('TERMINAL', 'Prompting user to collectPaymentMethod (tap contactless card/phone)...');
+        isCollectingRef.current = true;
         let { paymentIntent: collectedIntent, error: collectError } =
           await collectPaymentMethod({ paymentIntent });
+        isCollectingRef.current = false;
 
         // Self-healing retry if collection failed due to unexpected reader disconnect or busy state
         if (
           collectError &&
           (collectError.code === 'NOT_CONNECTED_TO_READER' ||
             collectError.code === 'READER_BUSY' ||
+            collectError.code === 'READER_ERROR' ||
+            collectError.code === 'COMMAND_TIMEOUT' ||
             collectError.message?.toLowerCase().includes('connect') ||
             collectError.message?.toLowerCase().includes('busy') ||
             collectError.message?.toLowerCase().includes('reader'))
@@ -944,7 +955,9 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 ? 'Simulating contactless tap...'
                 : 'Ready for tap. Hold card against the back of your phone...'
             );
+            isCollectingRef.current = true;
             const retryRes = await collectPaymentMethod({ paymentIntent });
+            isCollectingRef.current = false;
             collectedIntent = retryRes.paymentIntent;
             collectError = retryRes.error;
           }
@@ -1004,7 +1017,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
       retrievePaymentIntent,
       collectPaymentMethod,
       confirmPaymentIntent,
-      cancelCollectPaymentMethod,
+      safeCancelCollectPaymentMethod,
       getPaymentStatus,
     ]
   );
@@ -1016,12 +1029,10 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsProcessing(false);
     setErrorMessage(null);
     setStatusMessage('Processing payment...');
-    try {
-      if (typeof cancelCollectPaymentMethod === 'function') {
-        cancelCollectPaymentMethod().catch(() => {});
-      }
-    } catch {}
-  }, [cancelCollectPaymentMethod]);
+    if (isCollectingRef.current) {
+      safeCancelCollectPaymentMethod().catch(() => {});
+    }
+  }, [safeCancelCollectPaymentMethod]);
 
   return (
     <TerminalContext.Provider
