@@ -100,7 +100,7 @@ export default function ReceiptShareModal({
       }
 
       // Small delay to ensure any offscreen rendering is settled
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 80));
 
       const capturePromise = captureRef(receiptCardRef, {
         format: 'png',
@@ -137,6 +137,13 @@ export default function ReceiptShareModal({
             });
           } catch (shareAsyncErr) {
             console.warn('Sharing.shareAsync (image) failed, falling back to Share.share:', shareAsyncErr);
+            const routeInfo = hasRoute ? `\nRoute: ${pickup || '--'} to ${dropoff || '--'}` : '';
+            const shareMsg = `Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}${routeInfo}`;
+            await Share.share({
+              title: `Receipt Image - ${biz}`,
+              message: shareMsg,
+              url: shareFileUri,
+            });
           }
         }, 180);
         return;
@@ -179,6 +186,8 @@ export default function ReceiptShareModal({
 
   // 2. Share as Animated Card (GIF)
   const handleShareAnimatedGif = async () => {
+    let receiptTmpUri: string | null = null;
+    let adTmpUri: string | null = null;
     try {
       setIsSharing(true);
       setSharingFormat('gif');
@@ -198,24 +207,35 @@ export default function ReceiptShareModal({
       }
       await new Promise((resolve) => setTimeout(resolve, 150));
 
-      const captureReceipt = captureRef(receiptCardRef, {
-        format: 'png',
-        quality: 1.0,
-        result: 'base64',
-      });
-      const captureAd = captureRef(adBannerCardRef, {
-        format: 'png',
-        quality: 1.0,
-        result: 'base64',
-      });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Animated card capture timed out')), 12000)
-      );
-
-      const [receiptBase64, adBase64] = await Promise.race([
-        Promise.all([captureReceipt, captureAd]),
-        timeoutPromise,
+      // Sequential captures using result: 'tmpfile' to prevent ViewShot static buffer clobbering on Android
+      receiptTmpUri = await Promise.race([
+        captureRef(receiptCardRef, {
+          format: 'png',
+          quality: 1.0,
+          result: 'tmpfile',
+        }),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error('Receipt card capture timed out')), 10000)
+        ),
       ]);
+
+      adTmpUri = await Promise.race([
+        captureRef(adBannerCardRef, {
+          format: 'png',
+          quality: 1.0,
+          result: 'tmpfile',
+        }),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error('Ad banner capture timed out')), 10000)
+        ),
+      ]);
+
+      const receiptBase64 = await FileSystem.readAsStringAsync(receiptTmpUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const adBase64 = await FileSystem.readAsStringAsync(adTmpUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
 
       const filename = getExportFilename('Animated_Receipt', biz, 'gif');
       const targetUri = `${baseDir}${filename}`;
@@ -239,12 +259,20 @@ export default function ReceiptShareModal({
             });
           } catch (shareAsyncErr) {
             console.warn('Sharing.shareAsync (gif) failed, falling back to Share.share:', shareAsyncErr);
+            const routeInfo = hasRoute ? `\nRoute: ${pickup || '--'} to ${dropoff || '--'}` : '';
+            const shareMsg = `Animated Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}${routeInfo}`;
+            await Share.share({
+              title: `Animated Receipt - ${biz}`,
+              message: shareMsg,
+              url: targetUri,
+            });
           }
         }, 180);
         return;
       }
 
-      const shareMsg = `Animated Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}`;
+      const routeInfo = hasRoute ? `\nRoute: ${pickup || '--'} to ${dropoff || '--'}` : '';
+      const shareMsg = `Animated Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}${routeInfo}`;
       onClose();
       setTimeout(async () => {
         try {
@@ -273,6 +301,20 @@ export default function ReceiptShareModal({
       });
       onClose();
     } finally {
+      if (receiptTmpUri) {
+        try {
+          await FileSystem.deleteAsync(receiptTmpUri, { idempotent: true });
+        } catch {
+          // ignore
+        }
+      }
+      if (adTmpUri) {
+        try {
+          await FileSystem.deleteAsync(adTmpUri, { idempotent: true });
+        } catch {
+          // ignore
+        }
+      }
       setIsSharing(false);
       setSharingFormat(null);
     }
@@ -287,25 +329,31 @@ export default function ReceiptShareModal({
       const html = await generateReceiptHtml(receiptInput);
       const printPromise = Print.printToFileAsync({
         html,
-        base64: false,
+        base64: true,
       });
-      const timeoutPromise = new Promise<{ uri: string }>((_, reject) =>
+      const timeoutPromise = new Promise<{ uri: string; base64?: string }>((_, reject) =>
         setTimeout(() => reject(new Error('PDF generation timed out')), 12000)
       );
-      const { uri } = await Promise.race([printPromise, timeoutPromise]);
+      const printResult = await Promise.race([printPromise, timeoutPromise]);
 
       const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
       const filename = getExportFilename('Receipt', biz, 'pdf');
       const targetUri = `${baseDir}${filename}`;
 
-      try {
-        await FileSystem.copyAsync({ from: uri, to: targetUri });
-      } catch {
-        // fallback
+      if (printResult.base64) {
+        await FileSystem.writeAsStringAsync(targetUri, printResult.base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } else {
+        try {
+          await FileSystem.copyAsync({ from: printResult.uri, to: targetUri });
+        } catch {
+          // fallback
+        }
       }
 
       const fileInfo = await FileSystem.getInfoAsync(targetUri);
-      const shareFileUri = fileInfo.exists ? targetUri : uri;
+      const shareFileUri = fileInfo.exists ? targetUri : printResult.uri;
 
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
@@ -319,6 +367,13 @@ export default function ReceiptShareModal({
             });
           } catch (shareErr) {
             console.warn('Sharing.shareAsync failed, trying Share.share:', shareErr);
+            const routeInfo = hasRoute ? `\nRoute: ${pickup || '--'} to ${dropoff || '--'}` : '';
+            const shareMsg = `Receipt: ${biz}\nAmount: ${receiptInput.amountFormatted || `$${whole}.${cents}`}\nMethod: ${paymentMethodLabel}\nDate: ${dt}${routeInfo}`;
+            await Share.share({
+              title: `Receipt - ${biz}`,
+              message: shareMsg,
+              url: shareFileUri,
+            });
           }
         }, 180);
         return;
@@ -364,175 +419,179 @@ export default function ReceiptShareModal({
       {/* ── HIDDEN OFFSCREEN CARDS FOR HIGH-RESOLUTION PNG & GIF CAPTURE ── */}
       <View style={styles.hiddenOffscreenContainer} pointerEvents="none" collapsable={false}>
         {/* Main Receipt Card to Capture */}
-        <View ref={receiptCardRef} collapsable={false} style={styles.shareReceiptCard}>
-          <View style={styles.shareBadgeWrap}>
-            {logoUrl ? (
-              <Image
-                source={{ uri: logoUrl }}
-                style={styles.shareLogoImage}
-                resizeMode="cover"
-              />
+        <View style={styles.offscreenCardWrap} collapsable={false}>
+          <View ref={receiptCardRef} collapsable={false} style={styles.shareReceiptCard}>
+            <View style={styles.shareBadgeWrap}>
+              {logoUrl ? (
+                <Image
+                  source={{ uri: logoUrl }}
+                  style={styles.shareLogoImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Image
+                  source={require('../../../assets/taxi-logo.png')}
+                  style={styles.shareLogoImage}
+                  resizeMode="cover"
+                />
+              )}
+            </View>
+
+            <Text style={styles.shareBizName}>{biz}</Text>
+            <Text style={styles.shareTaxInvoiceHeading}>TAX INVOICE</Text>
+            <Text style={styles.shareBizMeta}>
+              ABN: {abnVal} • PH: {phoneVal}
+            </Text>
+            {isTaxi ? (
+              <Text style={styles.shareBizMeta}>
+                TAXI NO.: {taxiNo || '--'}
+                {dcNo ? `   DC: ${dcNo}` : ''}
+              </Text>
             ) : (
-              <Image
-                source={require('../../../assets/taxi-logo.png')}
-                style={styles.shareLogoImage}
-                resizeMode="cover"
-              />
+              <Text style={styles.shareBizMeta}>
+                EMP: {staff}
+                {staffCode ? ` (${staffCode})` : ''}
+              </Text>
             )}
-          </View>
+            {receiptInput.address ? (
+              <Text style={styles.shareBizMeta}>{receiptInput.address}</Text>
+            ) : null}
 
-          <Text style={styles.shareBizName}>{biz}</Text>
-          <Text style={styles.shareTaxInvoiceHeading}>TAX INVOICE</Text>
-          <Text style={styles.shareBizMeta}>
-            ABN: {abnVal} • PH: {phoneVal}
-          </Text>
-          {isTaxi ? (
-            <Text style={styles.shareBizMeta}>
-              TAXI NO.: {taxiNo || '--'}
-              {dcNo ? `   DC: ${dcNo}` : ''}
-            </Text>
-          ) : (
-            <Text style={styles.shareBizMeta}>
-              EMP: {staff}
-              {staffCode ? ` (${staffCode})` : ''}
-            </Text>
-          )}
-          {receiptInput.address ? (
-            <Text style={styles.shareBizMeta}>{receiptInput.address}</Text>
-          ) : null}
-
-          <View style={styles.shareAmountSection}>
-            <Text style={styles.shareTotalPaidLabel}>TOTAL PAID (INC GST)</Text>
-            <View style={styles.shareAmountWrap}>
-              <Text style={styles.shareDollarSign}>$ </Text>
-              <Text style={styles.shareAmountInt}>{whole}</Text>
-              <Text style={styles.shareAmountDec}>.{cents}</Text>
+            <View style={styles.shareAmountSection}>
+              <Text style={styles.shareTotalPaidLabel}>TOTAL PAID (INC GST)</Text>
+              <View style={styles.shareAmountWrap}>
+                <Text style={styles.shareDollarSign}>$ </Text>
+                <Text style={styles.shareAmountInt}>{whole}</Text>
+                <Text style={styles.shareAmountDec}>.{cents}</Text>
+              </View>
+              <View style={styles.sharePaidBadge}>
+                <View style={styles.shareGreenDot} />
+                <Text style={styles.sharePaidText}>PAID</Text>
+              </View>
             </View>
-            <View style={styles.sharePaidBadge}>
-              <View style={styles.shareGreenDot} />
-              <Text style={styles.sharePaidText}>PAID</Text>
-            </View>
-          </View>
 
-          <View style={styles.shareCardDivider} />
+            <View style={styles.shareCardDivider} />
 
-          {hasRoute && (
-            <>
-              <View style={styles.shareRouteSection}>
-                <View style={styles.shareRouteCol}>
-                  <Text style={styles.shareRouteLabel}>PICKUP</Text>
-                  <Text style={styles.shareRouteVal}>
-                    {pickup || '--'}
+            {hasRoute && (
+              <>
+                <View style={styles.shareRouteSection}>
+                  <View style={styles.shareRouteCol}>
+                    <Text style={styles.shareRouteLabel}>PICKUP</Text>
+                    <Text style={styles.shareRouteVal}>
+                      {pickup || '--'}
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color="#F59E0B" style={{ marginHorizontal: 6 }} />
+                  <View style={[styles.shareRouteCol, { alignItems: 'flex-end' }]}>
+                    <Text style={[styles.shareRouteLabel, { textAlign: 'right' }]}>DROP OFF</Text>
+                    <Text style={[styles.shareRouteVal, { textAlign: 'right' }]}>
+                      {dropoff || '--'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.shareCardDivider} />
+              </>
+            )}
+
+            {hasBk && bkBase !== null && (
+              <>
+                <View style={styles.shareBreakdownBox}>
+                  <Text style={styles.shareBreakdownHdr}>PAYMENT BREAKDOWN</Text>
+                  <View style={styles.shareBreakdownRow}>
+                    <Text style={styles.shareBreakdownLbl}>Base Amount</Text>
+                    <Text style={styles.shareBreakdownVal}>${Number(bkBase).toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.shareBreakdownRow}>
+                    <Text style={styles.shareBreakdownLbl}>Service Fee</Text>
+                    <Text style={styles.shareBreakdownVal}>${Number(bkFee).toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.shareCardDivider, { marginVertical: 4 }]} />
+                  <View style={styles.shareBreakdownRow}>
+                    <Text style={[styles.shareBreakdownLbl, { fontWeight: '700', color: '#0F172A' }]}>
+                      Total (INC GST)
+                    </Text>
+                    <Text style={[styles.shareBreakdownVal, { color: '#D97706', fontWeight: '800' }]}>
+                      ${Number(bkTotal).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.shareCardDivider} />
+              </>
+            )}
+
+            <View style={styles.shareMetaList}>
+              <View style={styles.shareMetaRow}>
+                <View>
+                  <Text style={styles.shareMetaLabel}>Date & Time</Text>
+                  <Text style={styles.shareMetaValue}>{dt}</Text>
+                </View>
+                <View style={isCash ? styles.chipCash : styles.chipCard}>
+                  <Text style={isCash ? styles.chipCashText : styles.chipCardText}>
+                    {isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}
                   </Text>
                 </View>
-                <Ionicons name="arrow-forward" size={16} color="#F59E0B" style={{ marginHorizontal: 6 }} />
-                <View style={[styles.shareRouteCol, { alignItems: 'flex-end' }]}>
-                  <Text style={[styles.shareRouteLabel, { textAlign: 'right' }]}>DROP OFF</Text>
-                  <Text style={[styles.shareRouteVal, { textAlign: 'right' }]}>
-                    {dropoff || '--'}
-                  </Text>
-                </View>
               </View>
-              <View style={styles.shareCardDivider} />
-            </>
-          )}
 
-          {hasBk && bkBase !== null && (
-            <>
-              <View style={styles.shareBreakdownBox}>
-                <Text style={styles.shareBreakdownHdr}>PAYMENT BREAKDOWN</Text>
-                <View style={styles.shareBreakdownRow}>
-                  <Text style={styles.shareBreakdownLbl}>Base Amount</Text>
-                  <Text style={styles.shareBreakdownVal}>${Number(bkBase).toFixed(2)}</Text>
+              <View style={styles.shareMetaRow}>
+                <View>
+                  <Text style={styles.shareMetaLabel}>Payment Method</Text>
+                  <Text style={styles.shareMetaValue}>{paymentMethodLabel}</Text>
                 </View>
-                <View style={styles.shareBreakdownRow}>
-                  <Text style={styles.shareBreakdownLbl}>Service Fee</Text>
-                  <Text style={styles.shareBreakdownVal}>${Number(bkFee).toFixed(2)}</Text>
-                </View>
-                <View style={[styles.shareCardDivider, { marginVertical: 4 }]} />
-                <View style={styles.shareBreakdownRow}>
-                  <Text style={[styles.shareBreakdownLbl, { fontWeight: '700', color: '#0F172A' }]}>
-                    Total (INC GST)
-                  </Text>
-                  <Text style={[styles.shareBreakdownVal, { color: '#D97706', fontWeight: '800' }]}>
-                    ${Number(bkTotal).toFixed(2)}
-                  </Text>
+                <View style={isCash ? styles.chipCash : styles.chipCard}>
+                  <Text style={isCash ? styles.chipCashText : styles.chipCardText}>{cardBrand}</Text>
                 </View>
               </View>
-              <View style={styles.shareCardDivider} />
-            </>
-          )}
 
-          <View style={styles.shareMetaList}>
-            <View style={styles.shareMetaRow}>
-              <View>
-                <Text style={styles.shareMetaLabel}>Date & Time</Text>
-                <Text style={styles.shareMetaValue}>{dt}</Text>
-              </View>
-              <View style={isCash ? styles.chipCash : styles.chipCard}>
-                <Text style={isCash ? styles.chipCashText : styles.chipCardText}>
-                  {isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}
-                </Text>
+              <View style={styles.shareMetaRow}>
+                <View>
+                  <Text style={styles.shareMetaLabel}>
+                    {isCash ? 'Receipt ID' : 'Payment ID'}
+                  </Text>
+                  <Text style={styles.shareMetaValue}>{payId}</Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.shareMetaRow}>
-              <View>
-                <Text style={styles.shareMetaLabel}>Payment Method</Text>
-                <Text style={styles.shareMetaValue}>{paymentMethodLabel}</Text>
-              </View>
-              <View style={isCash ? styles.chipCash : styles.chipCard}>
-                <Text style={isCash ? styles.chipCashText : styles.chipCardText}>{cardBrand}</Text>
-              </View>
+            <View style={styles.shareFooter}>
+              <Text style={styles.shareThankYou}>
+                THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
+              </Text>
+              <Text style={styles.sharePoweredBy}>POWERED BY</Text>
+              <Image
+                source={require('../../../assets/SE-pay-logo-gif.gif')}
+                style={styles.shareSePayLogo}
+                resizeMode="contain"
+              />
             </View>
-
-            <View style={styles.shareMetaRow}>
-              <View>
-                <Text style={styles.shareMetaLabel}>
-                  {isCash ? 'Receipt ID' : 'Payment ID'}
-                </Text>
-                <Text style={styles.shareMetaValue}>{payId}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.shareFooter}>
-            <Text style={styles.shareThankYou}>
-              THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
-            </Text>
-            <Text style={styles.sharePoweredBy}>POWERED BY</Text>
-            <Image
-              source={require('../../../assets/SE-pay-logo-gif.gif')}
-              style={styles.shareSePayLogo}
-              resizeMode="contain"
-            />
           </View>
         </View>
 
         {/* Ad Banner Card for Animated GIF */}
         {hasAd && bannerUrl && (
-          <View ref={adBannerCardRef} collapsable={false} style={styles.shareAdBannerCard}>
-            <View style={styles.shareAdCardHeader}>
-              <View style={styles.shareAdSponsoredPill}>
-                <Ionicons name="sparkles" size={11} color="#92400E" style={{ marginRight: 4 }} />
-                <Text style={styles.shareAdSponsoredPillText}>SPONSORED ADVERTISEMENT</Text>
+          <View style={styles.offscreenCardWrap} collapsable={false}>
+            <View ref={adBannerCardRef} collapsable={false} style={styles.shareAdBannerCard}>
+              <View style={styles.shareAdCardHeader}>
+                <View style={styles.shareAdSponsoredPill}>
+                  <Ionicons name="sparkles" size={11} color="#92400E" style={{ marginRight: 4 }} />
+                  <Text style={styles.shareAdSponsoredPillText}>SPONSORED ADVERTISEMENT</Text>
+                </View>
+                <Text style={styles.shareAdBrandText}>SE PAY</Text>
               </View>
-              <Text style={styles.shareAdBrandText}>SE PAY</Text>
-            </View>
 
-            <View style={styles.shareAdImageWrap}>
-              <Image
-                source={{ uri: bannerUrl }}
-                style={styles.shareAdImage}
-                resizeMode="contain"
-              />
-            </View>
+              <View style={styles.shareAdImageWrap}>
+                <Image
+                  source={{ uri: bannerUrl }}
+                  style={styles.shareAdImage}
+                  resizeMode="contain"
+                />
+              </View>
 
-            <View style={styles.shareAdFooter}>
-              <Text style={styles.shareAdFooterThank}>
-                THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
-              </Text>
-              <Text style={styles.shareAdFooterPowered}>POWERED BY SE PAY</Text>
+              <View style={styles.shareAdFooter}>
+                <Text style={styles.shareAdFooterThank}>
+                  THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
+                </Text>
+                <Text style={styles.shareAdFooterPowered}>POWERED BY SE PAY</Text>
+              </View>
             </View>
           </View>
         )}
@@ -673,22 +732,26 @@ const styles = StyleSheet.create({
   /* Hidden Offscreen Container for PNG / GIF capture */
   hiddenOffscreenContainer: {
     position: 'absolute',
+    left: -9999,
     top: 0,
-    left: 0,
-    right: 0,
-    zIndex: -1,
     opacity: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+  },
+  offscreenCardWrap: {
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    marginRight: 24,
   },
   shareReceiptCard: {
-    width: 350,
+    width: 360,
     backgroundColor: '#FFFDF7',
     borderWidth: 1.5,
     borderColor: '#FEF08A',
     borderRadius: 20,
-    padding: 16,
+    padding: 18,
+    paddingBottom: 28,
     alignItems: 'center',
   },
   shareBadgeWrap: {
@@ -898,19 +961,20 @@ const styles = StyleSheet.create({
     color: '#2563EB',
   },
   shareFooter: {
-    marginTop: 8,
-    paddingTop: 7,
+    marginTop: 10,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
     alignItems: 'center',
     width: '100%',
+    paddingBottom: 4,
   },
   shareThankYou: {
     fontSize: 9.5,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: 0.4,
-    marginBottom: 2,
+    marginBottom: 4,
     textAlign: 'center',
   },
   sharePoweredBy: {
@@ -918,22 +982,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#94A3B8',
     letterSpacing: 1,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   shareSePayLogo: {
-    width: 85,
-    height: 22,
+    width: 90,
+    height: 24,
   },
 
   /* Sponsored Ad Banner Card for GIF */
   shareAdBannerCard: {
-    width: 350,
-    height: 520,
+    width: 360,
+    height: 560,
     backgroundColor: '#0F172A',
     borderRadius: 24,
-    padding: 14,
+    padding: 16,
+    paddingBottom: 24,
     justifyContent: 'space-between',
-    marginTop: 14,
   },
   shareAdCardHeader: {
     flexDirection: 'row',

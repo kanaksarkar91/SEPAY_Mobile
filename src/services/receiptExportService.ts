@@ -507,20 +507,26 @@ export async function printShiftSlip(input: ShiftSlipInput): Promise<void> {
  */
 export async function shareShiftSlip(input: ShiftSlipInput): Promise<void> {
   const html = generateShiftSlipHtml(input);
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const printResult = await Print.printToFileAsync({ html, base64: true });
   const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   const shiftCode = input.displayShiftCode || 'SHIFT';
   const fileName = `Shift_Report_${shiftCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.pdf`;
   const targetUri = `${baseDir}${fileName}`;
 
-  try {
-    await FileSystem.copyAsync({ from: uri, to: targetUri });
-  } catch {
-    // fallback
+  if (printResult.base64) {
+    await FileSystem.writeAsStringAsync(targetUri, printResult.base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } else {
+    try {
+      await FileSystem.copyAsync({ from: printResult.uri, to: targetUri });
+    } catch {
+      // fallback
+    }
   }
 
   const fileInfo = await FileSystem.getInfoAsync(targetUri);
-  const shareFileUri = fileInfo.exists ? targetUri : uri;
+  const shareFileUri = fileInfo.exists ? targetUri : printResult.uri;
 
   const isAvailable = await Sharing.isAvailableAsync();
   if (isAvailable) {

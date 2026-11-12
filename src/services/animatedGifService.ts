@@ -5,30 +5,96 @@ import { appLogger } from './appLogger';
 
 const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
+function cleanBase64(b64: string): string {
+  if (!b64) return '';
+  // Strip data-uri prefix if present (e.g. data:image/png;base64, or data:*;base64,)
+  let clean = b64.replace(/^data:[^;]+;base64,/, '');
+  // Strip any whitespace, newlines, carriage returns
+  clean = clean.replace(/\s+/g, '');
+  return clean;
+}
+
+function toExactArrayBuffer(uint8: Uint8Array): ArrayBuffer {
+  return uint8.buffer.slice(
+    uint8.byteOffset,
+    uint8.byteOffset + uint8.byteLength
+  ) as ArrayBuffer;
+}
+
 function base64ToUint8Array(b64: string): Uint8Array {
+  const clean = cleanBase64(b64);
+  if (typeof atob === 'function') {
+    try {
+      const binary = atob(clean);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    } catch {
+      // Fallback below
+    }
+  }
+
   if (typeof Buffer !== 'undefined') {
-    return new Uint8Array(Buffer.from(b64, 'base64'));
+    try {
+      const buf = Buffer.from(clean, 'base64');
+      return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    } catch {
+      // Fallback
+    }
   }
-  const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
-  const len = clean.length;
-  const bytes = new Uint8Array(Math.floor((len * 3) / 4));
+
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < B64_CHARS.length; i++) {
+    lookup[B64_CHARS.charCodeAt(i)] = i;
+  }
+  let validLen = clean.length;
+  while (validLen > 0 && clean[validLen - 1] === '=') {
+    validLen--;
+  }
+
+  const byteLen = Math.floor((validLen * 3) / 4);
+  const bytes = new Uint8Array(byteLen);
   let p = 0;
-  for (let i = 0; i < len; i += 4) {
-    const b0 = B64_CHARS.indexOf(clean[i]);
-    const b1 = B64_CHARS.indexOf(clean[i + 1]);
-    const b2 = i + 2 < len ? B64_CHARS.indexOf(clean[i + 2]) : -1;
-    const b3 = i + 3 < len ? B64_CHARS.indexOf(clean[i + 3]) : -1;
+  for (let i = 0; i < validLen; i += 4) {
+    const b0 = lookup[clean.charCodeAt(i)];
+    const b1 = i + 1 < validLen ? lookup[clean.charCodeAt(i + 1)] : 0;
+    const b2 = i + 2 < validLen ? lookup[clean.charCodeAt(i + 2)] : 0;
+    const b3 = i + 3 < validLen ? lookup[clean.charCodeAt(i + 3)] : 0;
+
     bytes[p++] = (b0 << 2) | (b1 >> 4);
-    if (b2 !== -1 && b2 < 64) bytes[p++] = ((b1 & 15) << 4) | (b2 >> 2);
-    if (b3 !== -1 && b3 < 64) bytes[p++] = ((b2 & 3) << 6) | b3;
+    if (p < byteLen) bytes[p++] = ((b1 & 15) << 4) | (b2 >> 2);
+    if (p < byteLen) bytes[p++] = ((b2 & 3) << 6) | b3;
   }
-  return bytes.subarray(0, p);
+  return bytes;
 }
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  if (typeof Buffer !== 'undefined') {
-    return Buffer.from(bytes).toString('base64');
+  if (typeof btoa === 'function') {
+    try {
+      let binary = '';
+      const len = bytes.length;
+      const chunkSize = 8192;
+      for (let i = 0; i < len; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+        binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+      }
+      return btoa(binary);
+    } catch {
+      // Fallback
+    }
   }
+
+  if (typeof Buffer !== 'undefined') {
+    try {
+      return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64');
+    } catch {
+      // Fallback
+    }
+  }
+
   let str = '';
   const len = bytes.length;
   for (let i = 0; i < len; i += 3) {
@@ -224,7 +290,8 @@ export const animatedGifService = {
 
     // 1. Decode Frame 1 (Receipt Card)
     const buf1 = base64ToUint8Array(receiptBase64Png);
-    const img1 = UPNG.decode(buf1.buffer as ArrayBuffer);
+    const ab1 = toExactArrayBuffer(buf1);
+    const img1 = UPNG.decode(ab1);
     const rawRgba1 = new Uint8Array(UPNG.toRGBA8(img1)[0] as ArrayBuffer);
     const width = img1.width;
     const height = img1.height;
@@ -234,7 +301,8 @@ export const animatedGifService = {
 
     // 2. Decode Frame 2 (Ad Banner Card)
     const buf2 = base64ToUint8Array(adBannerBase64Png);
-    const img2 = UPNG.decode(buf2.buffer as ArrayBuffer);
+    const ab2 = toExactArrayBuffer(buf2);
+    const img2 = UPNG.decode(ab2);
     const rawRgba2 = new Uint8Array(UPNG.toRGBA8(img2)[0] as ArrayBuffer);
 
     // Pre-flatten Frame 2 against dark navy background ([15, 23, 42])
@@ -251,13 +319,13 @@ export const animatedGifService = {
         height,
         [15, 23, 42, 255]
       );
-      finalRgba2Buffer = fittedRgba2.buffer as ArrayBuffer;
+      finalRgba2Buffer = toExactArrayBuffer(fittedRgba2);
     } else {
-      finalRgba2Buffer = flatRgba2.buffer as ArrayBuffer;
+      finalRgba2Buffer = toExactArrayBuffer(flatRgba2);
     }
 
     // 3. High-fidelity median cut quantization for both frames
-    const f1 = quantizeRgbaToGifFrame(flatRgba1.buffer as ArrayBuffer, width, height);
+    const f1 = quantizeRgbaToGifFrame(toExactArrayBuffer(flatRgba1), width, height);
     const f2 = quantizeRgbaToGifFrame(finalRgba2Buffer, width, height);
 
     // 4. Encode animated GIF via omggif with mobile-safe pacing & disposal: 2
