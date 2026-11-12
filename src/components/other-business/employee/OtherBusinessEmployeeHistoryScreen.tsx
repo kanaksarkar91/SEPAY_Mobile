@@ -325,10 +325,6 @@ export default function OtherBusinessEmployeeHistoryScreen({
   const unpaidCount = shiftHistoryData?.filters?.tabs?.unpaid_shifts?.count ?? 0;
 
   const summary = shiftHistoryData?.summary;
-  const totalCollections = summary?.total_shift_collections ?? 0;
-  const wholeAmount = Math.floor(totalCollections).toLocaleString('en-US');
-  const centsAmount = (totalCollections.toFixed(2)).split('.')[1] || '00';
-  const paidPercentage = summary?.paid_percentage ?? 0;
 
   const handleCardPress = (shift: ShiftRecordItem) => {
     if (onSelectShift) {
@@ -499,34 +495,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
 
             {/* ── 3. TOTAL SHIFT COLLECTIONS CARD ── */}
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryCardLabel}>TOTAL SHIFT COLLECTIONS</Text>
-              <View style={styles.bigAmountRow}>
-                <Text style={styles.bigAmountDollar}>$</Text>
-                <Text style={styles.bigAmountWhole}>{wholeAmount}</Text>
-                <Text style={styles.bigAmountCents}>.{centsAmount}</Text>
-              </View>
-
-              {/* Dual Segment Progress Bar */}
-              <View style={styles.progressBarTrack}>
-                {summary && summary.total_shift_collections > 0 ? (
-                  <>
-                    <View
-                      style={[
-                        styles.progressBarGreen,
-                        { flex: Math.max(0.01, paidPercentage) },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.progressBarOrange,
-                        { flex: Math.max(0.01, 100 - paidPercentage) },
-                      ]}
-                    />
-                  </>
-                ) : (
-                  <View style={[styles.progressBarNeutral, { flex: 1 }]} />
-                )}
-              </View>
+              <Text style={styles.summaryCardLabel}>SHIFT COLLECTIONS SUMMARY</Text>
 
               {/* 2 Bottom Metric Boxes */}
               <View style={styles.metricsBoxesRow}>
@@ -915,7 +884,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
     letterSpacing: 0.5,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   bigAmountRow: {
     flexDirection: 'row',

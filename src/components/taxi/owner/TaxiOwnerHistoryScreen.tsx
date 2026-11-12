@@ -283,16 +283,10 @@ export default function TaxiOwnerHistoryScreen({
   const unpaidCount = tabs?.unpaid_shifts?.count ?? 0;
 
   const summary = shiftHistoryData?.summary;
-  const totalCollections = summary?.total_shift_collections_formatted || '$0.00';
   const settledAmount = summary?.settled_paid_formatted || '$0.00';
   const settledSubtitle = summary?.settled_paid_subtitle || `${summary?.settled_paid_shifts_count ?? 0} shifts completed`;
   const pendingAmount = summary?.pending_unpaid_formatted || '$0.00';
   const pendingSubtitle = summary?.pending_unpaid_subtitle || `${summary?.pending_unpaid_shifts_count ?? 0} shifts awaiting`;
-
-  const totalNumeric = summary?.total_shift_collections || 0;
-  const paidNumeric = summary?.settled_paid || 0;
-  const greenFlex = totalNumeric > 0 ? Math.max(0.1, (paidNumeric / totalNumeric) * 10) : 1;
-  const amberFlex = totalNumeric > 0 ? Math.max(0.1, 10 - greenFlex) : 9;
 
   // Header taxi number
   const displayTaxiNo = shiftHistoryData?.header?.taxi_no || taxiNumber;
@@ -523,17 +517,7 @@ export default function TaxiOwnerHistoryScreen({
           end={{ x: 1, y: 0.5 }}
           style={styles.cardTopStripe}
         />
-        <Text style={styles.statsTitle}>TOTAL SHIFT COLLECTIONS</Text>
-
-        <View style={styles.amountDisplayRow}>
-          <Text style={styles.amountBig}>{totalCollections}</Text>
-        </View>
-
-        {/* Ratio Progress Bar */}
-        <View style={styles.ratioBarContainer}>
-          <View style={[styles.ratioBarGreen, { flex: greenFlex }]} />
-          <View style={[styles.ratioBarAmber, { flex: amberFlex }]} />
-        </View>
+        <Text style={styles.statsTitle}>SHIFT COLLECTIONS SUMMARY</Text>
 
         {/* Sub-Metric Boxes */}
         <View style={styles.metricBoxesRow}>
@@ -772,7 +756,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
     color: '#64748B',
-    marginBottom: 4,
+    marginBottom: 10,
   },
   amountDisplayRow: {
     flexDirection: 'row',

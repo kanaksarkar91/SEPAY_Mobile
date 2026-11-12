@@ -265,20 +265,7 @@ export default function ShiftHistoryScreen({
             end={{ x: 1, y: 0.5 }}
             style={styles.cardTopStripe}
           />
-          <Text style={styles.statsTitle}>TOTAL SHIFT COLLECTIONS</Text>
-
-          <View style={styles.amountDisplayRow}>
-            <Text style={styles.amountBig}>
-              ${Math.floor(MOCK_SHIFT_STATS.totalCollection).toLocaleString('en-US')}
-            </Text>
-            <Text style={styles.amountCents}>.00</Text>
-          </View>
-
-          {/* Ratio Progress Bar */}
-          <View style={styles.ratioBarContainer}>
-            <View style={[styles.ratioBarGreen, { flex: 9 }]} />
-            <View style={[styles.ratioBarAmber, { flex: 1 }]} />
-          </View>
+          <Text style={styles.statsTitle}>SHIFT COLLECTIONS SUMMARY</Text>
 
           {/* Sub-Metric Boxes */}
           <View style={styles.metricBoxesRow}>
@@ -713,7 +700,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#94A3B8',
     letterSpacing: 0.7,
-    marginBottom: 6,
+    marginBottom: 10,
     marginTop: 2,
   },
   amountDisplayRow: {

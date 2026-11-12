@@ -541,10 +541,6 @@ export default function OtherBusinessTransactionsScreen({
   };
 
   const summary = shiftHistoryData?.summary;
-  const totalCollections = summary?.total_shift_collections ?? 0;
-  const wholeAmount = `$${Math.floor(totalCollections).toLocaleString('en-US')}`;
-  const centsAmount = `.${(totalCollections.toFixed(2)).split('.')[1] || '00'}`;
-  const paidPercentage = summary?.paid_percentage ?? 0;
 
   const selector = shiftHistoryData?.header?.selector;
   const employeeList = selector?.employee_list || [];
@@ -770,35 +766,7 @@ export default function OtherBusinessTransactionsScreen({
                 style={styles.cardTopAccent}
               />
 
-              <Text style={styles.collectionsTitle}>TOTAL SHIFT COLLECTIONS</Text>
-
-              {/* Large Amount */}
-              <View style={styles.mainAmountRow}>
-                <Text style={styles.mainAmountWhole}>{wholeAmount}</Text>
-                <Text style={styles.mainAmountCents}>{centsAmount}</Text>
-              </View>
-
-              {/* Dual-color ratio bar: Green (Paid) & Amber (Unpaid) */}
-              <View style={styles.ratioProgressBarContainer}>
-                {summary && summary.total_shift_collections > 0 ? (
-                  <>
-                    <View
-                      style={[
-                        styles.ratioProgressGreen,
-                        { flex: Math.max(0.01, paidPercentage) },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.ratioProgressAmber,
-                        { flex: Math.max(0.01, 100 - paidPercentage) },
-                      ]}
-                    />
-                  </>
-                ) : (
-                  <View style={[styles.ratioProgressNeutral, { flex: 1 }]} />
-                )}
-              </View>
+              <Text style={styles.collectionsTitle}>SHIFT COLLECTIONS SUMMARY</Text>
 
               {/* Two Metric Summary Boxes */}
               <View style={styles.metricBoxesRow}>
@@ -1554,7 +1522,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748B',
     letterSpacing: 0.5,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   mainAmountRow: {
     flexDirection: 'row',
