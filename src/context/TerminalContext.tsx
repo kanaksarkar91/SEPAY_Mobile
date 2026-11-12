@@ -627,7 +627,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
             supportRes?.readerSupportResult === false
           ) {
             const devErr =
-              'This phone model does not support Tap to Pay hardware security (Device lacks Trusted Execution Environment / Key Attestation required by Stripe & PCI standards). Please use "Pay with Card Instead" on this phone, or use a supported device (e.g. Samsung Galaxy, Google Pixel).';
+              'This phone model does not support Tap to Pay hardware security (Device lacks Trusted Execution Environment / Key Attestation required by Stripe & PCI standards). Please use a supported device (e.g. Samsung Galaxy, Google Pixel).';
             appLogger.error('TERMINAL', devErr, supportRes);
             throw new Error(devErr);
           }
@@ -668,7 +668,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
           discoverError.message?.includes('Trusted Execution Environment')
         ) {
           discErrText =
-            'This phone model does not support Tap to Pay hardware security (Device lacks Trusted Execution Environment / Key Attestation required by Stripe & PCI standards). Please use "Pay with Card Instead" on this phone, or use a supported device (e.g. Samsung Galaxy, Google Pixel).';
+            'This phone model does not support Tap to Pay hardware security (Device lacks Trusted Execution Environment / Key Attestation required by Stripe & PCI standards). Please use a supported device (e.g. Samsung Galaxy, Google Pixel).';
         } else {
           discErrText += ' Please ensure Location (GPS) is turned ON and NFC is enabled in Android settings.';
         }

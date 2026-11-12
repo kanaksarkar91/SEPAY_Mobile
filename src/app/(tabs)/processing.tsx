@@ -299,7 +299,7 @@ export default function ProcessingScreen() {
             <View style={styles.pinHintBox}>
               <Ionicons name="bulb-outline" size={16} color="#B45309" style={{ marginRight: 8, marginTop: 1 }} />
               <Text style={styles.pinHintText}>
-                In Australia, physical card taps over $100–$200 may require a PIN or chip reader. Ask the customer to tap using Apple Pay or Google Wallet (no limit), or tap &quot;Pay with Card Instead&quot; below.
+                In Australia, physical card taps over $100–$200 may require a PIN or chip reader. Ask the customer to tap using Apple Pay or Google Wallet (no limit), or try again.
               </Text>
             </View>
           )}
@@ -313,27 +313,6 @@ export default function ProcessingScreen() {
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Fallback to Card payment when Tap to Pay fails or is unsupported */}
-          {paymentMethod === 'tap' && (
-            <TouchableOpacity
-              style={styles.switchCardBtn}
-              onPress={() => {
-                router.replace({
-                  pathname: '/(tabs)/card-entry',
-                  params: {
-                    amount: rawAmount,
-                    pickup: params.pickup || '',
-                    dropoff: params.dropoff || '',
-                  },
-                });
-              }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="card-outline" size={17} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.switchCardBtnText}>Pay with Card Instead</Text>
-            </TouchableOpacity>
-          )}
 
           {/* Diagnostic & Logs Sharing Options */}
           <View style={styles.diagnosticsContainer}>
@@ -555,22 +534,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 14,
-  },
-  switchCardBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563EB',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    width: '100%',
-    marginBottom: 14,
-  },
-  switchCardBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
   retryBtn: {
     backgroundColor: '#0F172A',

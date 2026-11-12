@@ -25,7 +25,7 @@ This document captures the complete architecture, findings, error taxonomy, veri
 [supportsReadersOfType({ deviceType: 'tapToPay' })] ───► Hardware TEE & Keystore Check
          │
          ├─── If unsupported ───► Fails fast with TAP_TO_PAY_UNSUPPORTED_DEVICE
-         │                         Offers "Pay with Card Instead" button
+         │                         Shows clear hardware requirements error
          ▼
 [initialize()] ───► Calls backend POST /api/connection_token for secret
          │
@@ -144,7 +144,7 @@ To ensure all future debugging can be done directly from physical APKs without a
    - In-memory circular buffer of 300 entries connected via `useSyncExternalStore`.
 2. **Payment Failure Screen (`src/app/(tabs)/processing.tsx`)**:
    - Shows the exact error message and code instead of generic text.
-   - **"Pay with Card Instead"**: Instantly redirects to card entry so the merchant can collect payment immediately.
+   - **"Try Again" & "Back to Amount"**: Allows fast retry without leaving payment workflow.
    - **"Share Error & Debug Logs"**: Opens the native Android share sheet (WhatsApp, Gmail, Drive).
    - **"View In-App Logs"**: Opens `DiagnosticLogsModal.tsx` to read timestamped events on-screen.
 3. **Profile Screen**:

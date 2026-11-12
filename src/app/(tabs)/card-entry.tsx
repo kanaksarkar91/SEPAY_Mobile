@@ -18,9 +18,11 @@ import HeaderBar from '../../components/common/HeaderBar';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { colors } from '../../constants/theme';
 import { paymentSession } from '../../services/paymentSession';
+import { getAllowedPaymentMethods } from '../../services/dashboardService';
 
 export default function CardEntryScreen() {
   const router = useRouter();
+  const { showAlert } = useConfirmModal();
   const params = useLocalSearchParams<{
     amount?: string;
     service_charges?: string;
@@ -34,8 +36,26 @@ export default function CardEntryScreen() {
     dropoff_id?: string;
   }>();
 
-  const rawAmount = params.amount || '104.00';
-  const numericAmount = parseFloat(rawAmount) || 104;
+  // Guard: Strictly verify that user has permission for Card payments
+  useEffect(() => {
+    const allowed = getAllowedPaymentMethods();
+    if (allowed && Array.isArray(allowed) && allowed.length > 0) {
+      const hasCard = allowed.some((m) =>
+        m.method_name?.toLowerCase().includes('card')
+      );
+      if (!hasCard) {
+        showAlert({
+          title: 'Permission Denied',
+          message: 'Pay with Card is not enabled for your account.',
+          type: 'warning',
+        });
+        router.replace('/(tabs)/tap-to-pay');
+      }
+    }
+  }, [router, showAlert]);
+
+  const rawAmount = params.amount || '0.00';
+  const numericAmount = parseFloat(rawAmount) || 0;
 
   // Format parts for exact Figma match: $ [gold] 1250 [black] .00 [gray]
   const integerPart =
@@ -132,8 +152,6 @@ export default function CardEntryScreen() {
   };
 
   const detectedBrand = getCardBrand(cardNumber);
-
-  const { showAlert } = useConfirmModal();
 
   // Open Fraud Warning modal
   const handleOpenConfirm = () => {
