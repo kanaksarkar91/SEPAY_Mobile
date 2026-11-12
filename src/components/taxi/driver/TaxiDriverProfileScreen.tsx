@@ -759,7 +759,7 @@ export default function TaxiDriverProfileScreen() {
 
         {/* ── DYNAMIC MENU OPTIONS (from API data.menu_options) ── */}
         <View style={styles.menuGroup}>
-          {(profileData?.menu_options || []).map((item) => (
+          {(profileData?.menu_options || []).filter((item) => item.key !== 'app_logs').map((item) => (
             <TouchableOpacity
               key={item.key}
               style={styles.pastRecordsCard}
@@ -769,8 +769,6 @@ export default function TaxiDriverProfileScreen() {
                   handleOpenBankModal();
                 } else if (item.action === 'navigate_manage_drivers' || item.key === 'manage_staff') {
                   router.push('/manage-driver');
-                } else if (item.action === 'navigate_app_logs' || item.key === 'app_logs') {
-                  setIsLogsModalVisible(true);
                 } else {
                   router.push('/(tabs)/transactions');
                 }
@@ -783,8 +781,6 @@ export default function TaxiDriverProfileScreen() {
                       ? 'business-outline'
                       : item.key === 'manage_staff'
                       ? 'people-outline'
-                      : item.key === 'app_logs'
-                      ? 'document-text-outline'
                       : 'swap-horizontal'
                   }
                   size={20}
@@ -801,8 +797,6 @@ export default function TaxiDriverProfileScreen() {
                       ? 'View & manage drivers'
                       : item.key === 'bank_details'
                       ? 'Payout account & settlements'
-                      : item.key === 'app_logs'
-                      ? 'Diagnostic logs & reports'
                       : '')}
                 </Text>
               </View>
@@ -810,6 +804,16 @@ export default function TaxiDriverProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ── DIAGNOSTIC LOGS BUTTON ── */}
+        <TouchableOpacity
+          style={styles.diagLogsButton}
+          onPress={() => setIsLogsModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="terminal-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
+          <Text style={styles.diagLogsButtonText}>Diagnostics & App Logs</Text>
+        </TouchableOpacity>
 
         {/* ── LOG OUT ACCOUNT BUTTON ── */}
         <TouchableOpacity
@@ -1624,6 +1628,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     marginTop: 1,
+  },
+
+  /* Diagnostics Button */
+  diagLogsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 14,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  diagLogsButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
 
   /* Log Out Button */
