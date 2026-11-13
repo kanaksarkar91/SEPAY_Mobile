@@ -22,14 +22,16 @@ import { useConfirmModal } from '../context/ConfirmModalContext';
 import { APP_CONFIG } from '../constants/appConfig';
 import { authService } from '../services/authService';
 
-type ForgotStep = 'mobile' | 'otp' | 'new_password' | 'success';
+type ForgotStep = 'identifier' | 'otp' | 'new_password' | 'success';
+type ResetMethod = 'mobile' | 'email';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { showAlert } = useConfirmModal();
 
-  const [step, setStep] = useState<ForgotStep>('mobile');
-  const [mobileNumber, setMobileNumber] = useState('0400 555 320');
+  const [step, setStep] = useState<ForgotStep>('identifier');
+  const [resetMethod, setResetMethod] = useState<ResetMethod>('mobile');
+  const [identifier, setIdentifier] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,6 +40,9 @@ export default function ForgotPasswordScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [timerSeconds, setTimerSeconds] = useState(30);
   const [isTimerActive, setIsTimerActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [tempResetToken, setTempResetToken] = useState<string | null>(null);
 
   const otpInputRef = useRef<TextInput>(null);
 
@@ -58,23 +63,55 @@ export default function ForgotPasswordScreen() {
     return () => clearInterval(interval);
   }, [isTimerActive]);
 
-  // Format mobile display with masking
-  const maskedMobile = () => {
-    const raw = mobileNumber.replace(/\s+/g, '');
-    const last3 = raw.slice(-3) || '320';
-    return `+61 ••• ••• ${last3}`;
+  // Format identifier display with masking
+  const maskedIdentifier = () => {
+    const raw = identifier.trim();
+    if (!raw) return '••••••';
+    if (resetMethod === 'email') {
+      const parts = raw.split('@');
+      if (parts.length === 2) {
+        const [user, domain] = parts;
+        if (user.length <= 2) {
+          return `${user[0] || ''}•••@${domain}`;
+        }
+        return `${user[0]}••••${user[user.length - 1]}@${domain}`;
+      }
+      return raw;
+    } else {
+      // Mobile - clean masking without country code prefix
+      const digits = raw.replace(/\s+/g, '');
+      if (digits.length <= 4) return digits;
+      const last3 = digits.slice(-3);
+      const maskedPart = '•'.repeat(Math.max(3, digits.length - 3));
+      return `${maskedPart} ${last3}`;
+    }
   };
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [devOtp, setDevOtp] = useState<string | null>(null);
 
   // Step 1: Send OTP via live stage API
   const handleSendOtp = async () => {
     Keyboard.dismiss();
-    const cleanNumber = mobileNumber.trim();
-    if (!cleanNumber) {
-      setErrorMessage('Please enter your DC Number, Username, or Mobile Number');
+    const cleanId = identifier.trim();
+    if (!cleanId) {
+      setErrorMessage(
+        resetMethod === 'mobile'
+          ? 'Please enter your registered mobile number'
+          : 'Please enter your registered email address'
+      );
       return;
+    }
+
+    if (resetMethod === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanId)) {
+        setErrorMessage('Please enter a valid email address');
+        return;
+      }
+    } else {
+      const digitsOnly = cleanId.replace(/[^0-9+]/g, '');
+      if (digitsOnly.length < 6) {
+        setErrorMessage('Please enter a valid mobile number');
+        return;
+      }
     }
 
     try {
@@ -83,7 +120,7 @@ export default function ForgotPasswordScreen() {
 
       // Send to live stage API: POST /api/forgot-password with { username }
       const res = await authService.requestPasswordResetOtp({
-        username: cleanNumber,
+        username: cleanId,
       });
 
       if (res.data?.dev_otp) {
@@ -106,15 +143,15 @@ export default function ForgotPasswordScreen() {
 
   // Resend OTP via live stage API
   const handleResendOtp = async () => {
-    const cleanNumber = mobileNumber.trim();
-    if (!cleanNumber) return;
+    const cleanId = identifier.trim();
+    if (!cleanId) return;
 
     try {
       setIsLoading(true);
       setErrorMessage('');
 
       const res = await authService.requestPasswordResetOtp({
-        username: cleanNumber,
+        username: cleanId,
       });
 
       if (res.data?.dev_otp) {
@@ -126,7 +163,11 @@ export default function ForgotPasswordScreen() {
       setIsTimerActive(true);
       showAlert({
         title: 'New Code Sent',
-        message: res.data?.message || `A new 6-digit code has been sent to ${mobileNumber}.`,
+        message:
+          res.data?.message ||
+          `A new 6-digit code has been sent to your ${
+            resetMethod === 'mobile' ? 'mobile number' : 'email address'
+          }.`,
         type: 'success',
         icon: 'mail-unread-outline',
       });
@@ -137,8 +178,6 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  const [tempResetToken, setTempResetToken] = useState<string | null>(null);
-
   // Step 2: Verify OTP via live stage API
   const handleVerifyOtp = async () => {
     Keyboard.dismiss();
@@ -147,7 +186,7 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
-    const cleanUsername = mobileNumber.trim();
+    const cleanUsername = identifier.trim();
 
     try {
       setIsLoading(true);
@@ -219,7 +258,7 @@ export default function ForgotPasswordScreen() {
           showBack={step !== 'success'}
           onBack={() => {
             if (step === 'otp') {
-              setStep('mobile');
+              setStep('identifier');
               setErrorMessage('');
             } else if (step === 'new_password') {
               setStep('otp');
@@ -316,16 +355,83 @@ export default function ForgotPasswordScreen() {
               </View>
 
               <View style={styles.cardInner}>
-                {/* ── STEP 1: MOBILE NUMBER ── */}
-                {step === 'mobile' && (
+                {/* ── STEP 1: MOBILE / EMAIL INPUT ── */}
+                {step === 'identifier' && (
                   <View>
-                    <View style={styles.iconCircle}>
-                      <Ionicons name="phone-portrait-outline" size={26} color="#B45309" />
+                    {/* Method Selection Tabs */}
+                    <View style={styles.methodToggleWrap}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          if (resetMethod !== 'mobile') {
+                            setResetMethod('mobile');
+                            setErrorMessage('');
+                          }
+                        }}
+                        style={[
+                          styles.methodToggleTab,
+                          resetMethod === 'mobile' && styles.methodToggleTabActive,
+                        ]}
+                      >
+                        <Ionicons
+                          name="phone-portrait-outline"
+                          size={15}
+                          color={resetMethod === 'mobile' ? '#0F172A' : '#64748B'}
+                        />
+                        <Text
+                          style={[
+                            styles.methodToggleLabel,
+                            resetMethod === 'mobile' && styles.methodToggleLabelActive,
+                          ]}
+                        >
+                          Mobile Number
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          if (resetMethod !== 'email') {
+                            setResetMethod('email');
+                            setErrorMessage('');
+                          }
+                        }}
+                        style={[
+                          styles.methodToggleTab,
+                          resetMethod === 'email' && styles.methodToggleTabActive,
+                        ]}
+                      >
+                        <Ionicons
+                          name="mail-outline"
+                          size={15}
+                          color={resetMethod === 'email' ? '#0F172A' : '#64748B'}
+                        />
+                        <Text
+                          style={[
+                            styles.methodToggleLabel,
+                            resetMethod === 'email' && styles.methodToggleLabelActive,
+                          ]}
+                        >
+                          Email Address
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.stepTitle}>Reset via Mobile</Text>
+                    <View style={styles.iconCircle}>
+                      <Ionicons
+                        name={resetMethod === 'mobile' ? 'phone-portrait-outline' : 'mail-outline'}
+                        size={26}
+                        color="#B45309"
+                      />
+                    </View>
+
+                    <Text style={styles.stepTitle}>
+                      {resetMethod === 'mobile' ? 'Reset via Mobile' : 'Reset via Email'}
+                    </Text>
                     <Text style={styles.stepDescription}>
-                      Enter your registered mobile phone number. We will send you a 6-digit verification code.
+                      {resetMethod === 'mobile'
+                        ? 'Enter your registered mobile phone number. We will send you a 6-digit verification code.'
+                        : 'Enter your registered email address. We will send you a 6-digit verification code.'}
                     </Text>
 
                     {/* Error Banner */}
@@ -336,33 +442,60 @@ export default function ForgotPasswordScreen() {
                       </View>
                     ) : null}
 
-                    {/* Mobile Input Group */}
+                    {/* Input Group (No Country Code Badge) */}
                     <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>REGISTERED MOBILE NUMBER</Text>
-                      <View style={styles.phoneInputRow}>
-                        <View style={styles.countryCodeBadge}>
-                          <Text style={styles.flagText}>🇦🇺</Text>
-                          <Text style={styles.countryCodeText}>+61</Text>
-                        </View>
-
+                      <Text style={styles.fieldLabel}>
+                        {resetMethod === 'mobile'
+                          ? 'REGISTERED MOBILE NUMBER'
+                          : 'REGISTERED EMAIL ADDRESS'}
+                      </Text>
+                      <View style={styles.identifierInputContainer}>
+                        <Ionicons
+                          name={resetMethod === 'mobile' ? 'call-outline' : 'mail-outline'}
+                          size={18}
+                          color="#64748B"
+                          style={styles.inputLeadingIcon}
+                        />
                         <TextInput
-                          style={styles.phoneInput}
-                          placeholder="0400 555 320"
+                          style={styles.identifierInput}
+                          placeholder={
+                            resetMethod === 'mobile'
+                              ? 'Enter mobile number'
+                              : 'Enter email address'
+                          }
                           placeholderTextColor="#94A3B8"
-                          value={mobileNumber}
+                          value={identifier}
                           onChangeText={(val) => {
-                            setMobileNumber(val);
+                            setIdentifier(val);
                             if (errorMessage) setErrorMessage('');
+                            if (val.includes('@') && resetMethod === 'mobile') {
+                              setResetMethod('email');
+                            }
                           }}
-                          keyboardType="phone-pad"
+                          keyboardType={resetMethod === 'mobile' ? 'phone-pad' : 'email-address'}
+                          autoCapitalize="none"
+                          autoCorrect={false}
                           autoFocus
                         />
+                        {identifier.length > 0 && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setIdentifier('');
+                              if (errorMessage) setErrorMessage('');
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
 
-                    {/* Quick helper note */}
+                    {/* Helper note */}
                     <Text style={styles.helperText}>
-                      Standard SMS carrier rates may apply. Code expires in 10 minutes.
+                      {resetMethod === 'mobile'
+                        ? 'Standard SMS carrier rates may apply. Code expires in 10 minutes.'
+                        : 'Please check your inbox or spam folder. Code expires in 10 minutes.'}
                     </Text>
 
                     {/* Send Code Button */}
@@ -401,7 +534,7 @@ export default function ForgotPasswordScreen() {
                     <Text style={styles.stepTitle}>Enter 6-Digit Code</Text>
                     <Text style={styles.stepDescription}>
                       We have sent a verification code to{' '}
-                      <Text style={styles.highlightText}>{maskedMobile()}</Text>.
+                      <Text style={styles.highlightText}>{maskedIdentifier()}</Text>.
                     </Text>
 
                     {/* Error Banner */}
@@ -475,7 +608,11 @@ export default function ForgotPasswordScreen() {
                         </Text>
                       ) : (
                         <TouchableOpacity onPress={handleResendOtp} activeOpacity={0.7}>
-                          <Text style={styles.resendLinkText}>Didn’t receive code? Resend SMS</Text>
+                          <Text style={styles.resendLinkText}>
+                            {resetMethod === 'mobile'
+                              ? 'Didn’t receive code? Resend SMS'
+                              : 'Didn’t receive code? Resend Email'}
+                          </Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -507,16 +644,18 @@ export default function ForgotPasswordScreen() {
                       </LinearGradient>
                     </TouchableOpacity>
 
-                    {/* Change Mobile Button */}
+                    {/* Change Identifier Button */}
                     <TouchableOpacity
                       style={styles.changeMobileBtn}
                       onPress={() => {
-                        setStep('mobile');
+                        setStep('identifier');
                         setErrorMessage('');
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.changeMobileText}>Change mobile number</Text>
+                      <Text style={styles.changeMobileText}>
+                        {resetMethod === 'mobile' ? 'Change mobile number' : 'Change email address'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -775,6 +914,41 @@ const styles = StyleSheet.create({
     padding: 20,
   },
 
+  /* Method Toggle (Mobile / Email) */
+  methodToggleWrap: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  methodToggleTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 9,
+    gap: 6,
+  },
+  methodToggleTabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  methodToggleLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  methodToggleLabelActive: {
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+
   /* Step Icons */
   iconCircle: {
     width: 54,
@@ -863,37 +1037,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 6,
   },
-  phoneInputRow: {
+
+  /* Identifier Input (No Country Code Badge) */
+  identifierInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 12,
     backgroundColor: '#F8FAFC',
-    overflow: 'hidden',
-  },
-  countryCodeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    borderRightWidth: 1,
-    borderRightColor: '#CBD5E1',
-    gap: 4,
-  },
-  flagText: {
-    fontSize: 16,
-  },
-  countryCodeText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  phoneInput: {
-    flex: 1,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    height: 48,
+  },
+  identifierInput: {
+    flex: 1,
     fontSize: 14,
     color: '#0F172A',
     fontWeight: '600',
