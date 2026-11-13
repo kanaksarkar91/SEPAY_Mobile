@@ -245,8 +245,8 @@ export default function OtherBusinessShiftDetailsScreen({
         shiftDetails?.business_name ||
         businessName;
       const logo = r?.business_logo || shiftDetails?.header?.logo_url;
-      const abnVal = r?.abn || shiftDetails?.header?.abn || '19113303849';
-      const phoneVal = r?.phone_no || r?.phone || shiftDetails?.header?.phone || '9113303849';
+      const abnVal = r?.abn || shiftDetails?.header?.abn || '';
+      const phoneVal = r?.phone_no || r?.phone || shiftDetails?.header?.phone || '';
       const taxiNo = r?.taxi_number || r?.taxi_no || shiftDetails?.header?.taxi_no || shiftDetails?.user?.taxi_no || '';
       const dcNo = r?.dc_number || shiftDetails?.header?.dc_number || shiftDetails?.user?.dc_number || '';
       const staff = shiftDetails?.user?.name || userName;
@@ -262,8 +262,8 @@ export default function OtherBusinessShiftDetailsScreen({
         (method.toLowerCase().includes('cash')
           ? 'Cash'
           : method.toLowerCase().includes('tap')
-          ? 'Tap & Go'
-          : 'Card');
+            ? 'Tap & Go'
+            : 'Card');
 
       return {
         businessName: biz,

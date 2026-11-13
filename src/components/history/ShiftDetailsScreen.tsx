@@ -44,8 +44,8 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
 
     return {
       businessName: shift.businessName,
-      abn: '19113303849',
-      phone: '9113303849',
+      abn: '',
+      phone: '',
       amount: selectedTxnForShare.amount,
       amountFormatted: `$${selectedTxnForShare.amount.toFixed(2)}`,
       dateTime: `${selectedTxnForShare.date} ${selectedTxnForShare.time}`,
@@ -55,7 +55,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
       paymentId: selectedTxnForShare.id,
       isTaxi: true,
       taxiNumber: shift.taxiNumber,
-      dcNumber: '112233',
+      dcNumber: '',
       pickup: selectedTxnForShare.pickup,
       dropoff: selectedTxnForShare.dropoff,
       staffName: shift.driverName,
