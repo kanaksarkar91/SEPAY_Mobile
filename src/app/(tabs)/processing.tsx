@@ -191,7 +191,7 @@ export default function ProcessingScreen() {
           const rawBrand = cardDetails?.brand || (cardInput ? 'Card' : 'Contactless');
           const brand = rawBrand.charAt(0).toUpperCase() + rawBrand.slice(1);
           const last4 = cardDetails?.last4 || cardInput?.number?.slice(-4) || '••••';
-          const realTxnId = charge?.id || pi.paymentIntentId || pi.id || `pi_${Date.now()}`;
+          const realTxnId = pi.id || pi.paymentIntentId || charge?.paymentIntentId || charge?.id || '--';
           const timestamp = new Date().toISOString();
 
           addTransaction({

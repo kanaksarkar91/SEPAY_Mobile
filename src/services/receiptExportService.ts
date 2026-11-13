@@ -117,15 +117,13 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   const dt = input.dateTime || formatSydneyToUserDateTime(new Date());
 
   const bk = input.breakdown;
-  const hasBk = Boolean(bk && (bk.base_amount !== undefined || bk.payable_amount !== undefined));
+  const bkTotal = bk?.payable_amount !== undefined ? Number(bk.payable_amount) : numeric;
+  const bkFee = bk?.service_fee !== undefined ? Number(bk.service_fee) : 0;
   const bkBase =
     bk?.base_amount !== undefined
       ? Number(bk.base_amount)
-      : bk?.payable_amount !== undefined && bk?.service_fee !== undefined
-      ? Number(bk.payable_amount) - Number(bk.service_fee)
-      : null;
-  const bkFee = bk?.service_fee !== undefined ? Number(bk.service_fee) : 0;
-  const bkTotal = bk?.payable_amount !== undefined ? Number(bk.payable_amount) : numeric;
+      : Math.max(0, bkTotal - bkFee);
+  const hasBk = true;
 
   const hasAd = Boolean(input.hasAdBanner && input.bannerImageUrl);
   const bannerUrl = normalizeImageUrl(input.bannerImageUrl);
@@ -371,7 +369,7 @@ export function buildReceiptInputFromRecentTxn(
   const method = r?.payment_method || txn.payment_method_label || txn.payment_method || 'Card';
   const paymentType = r?.payment_type || (method.toLowerCase().includes('cash') ? 'Cash' : method.toLowerCase().includes('tap') ? 'Tap & Go' : 'Card');
   const cardBrand = r?.card_brand || undefined;
-  const paymentId = r?.payment_id || txn.txn_id || txn.transaction_id || (typeof txn.id === 'string' ? txn.id : `TXN-${txn.id}`);
+  const paymentId = r?.payment_id || txn.txn_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '--');
   const pickup = r?.pickup_location || txn.pickup || txn.pickup_location || txn.route?.pickup || '';
   const dropoff = r?.drop_location || txn.dropoff || txn.dropoff_location || txn.route?.dropoff || '';
   const taxiNo = r?.taxi_number || (isTaxi ? (txn as any).taxi_number : undefined);
@@ -402,7 +400,7 @@ export function buildReceiptInputFromRecentTxn(
     staffEmpId,
     hasAdBanner: Boolean(r?.ad_banner && r?.banner_image_url),
     bannerImageUrl: r?.banner_image_url || null,
-    breakdown: r?.payment_break_down,
+    breakdown: r?.payment_break_down || (r as any)?.payment_breakdown || { payable_amount: numAmount, base_amount: numAmount, service_fee: 0 },
   };
 }
 

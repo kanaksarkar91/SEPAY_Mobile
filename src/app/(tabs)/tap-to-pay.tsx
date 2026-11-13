@@ -575,7 +575,7 @@ export default function TapToPayEnterAmountScreen() {
             dropup_location: finalDropupLoc,
           });
 
-          const realTxnId = cashTxnData.transaction_id || `TXN-${Date.now()}`;
+          const realTxnId = cashTxnData.transaction_id || (cashTxnData.id ? String(cashTxnData.id) : '--');
           const txnDate = cashTxnData.transaction_date || new Date().toISOString();
 
           addTransaction({
@@ -605,6 +605,7 @@ export default function TapToPayEnterAmountScreen() {
               cardLast4: '----',
               approvalCode: cashTxnData.approval_code || '',
               timestamp: txnDate,
+              service_charges: String(cashTxnData.service_fee ?? 0),
             },
           });
         } catch (cashErr: any) {
@@ -731,7 +732,7 @@ export default function TapToPayEnterAmountScreen() {
           dropup_location: finalDropupLoc,
         });
 
-        const realTxnId = cashTxnData.transaction_id || `TXN-${Date.now()}`;
+        const realTxnId = cashTxnData.transaction_id || (cashTxnData.id ? String(cashTxnData.id) : '--');
         const txnDate = cashTxnData.transaction_date || new Date().toISOString();
 
         addTransaction({

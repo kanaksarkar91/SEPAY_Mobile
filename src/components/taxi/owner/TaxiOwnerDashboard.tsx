@@ -207,7 +207,7 @@ export default function TaxiOwnerDashboard({
       setIsPrinting(true);
       let targetTxn = txn;
       if (!targetTxn.receipt) {
-        const pId = targetTxn.txn_id || targetTxn.transaction_id || String(targetTxn.id);
+        const pId = targetTxn.txn_id || targetTxn.transaction_id || (targetTxn.id != null ? String(targetTxn.id) : '');
         if (pId) {
           try {
             const fetchedReceipt = await receiptService.getReceipt(pId);
@@ -234,7 +234,7 @@ export default function TaxiOwnerDashboard({
   const handleShareReceipt = async (txn: RecentTransactionItem) => {
     let targetTxn = txn;
     if (!targetTxn.receipt) {
-      const pId = targetTxn.txn_id || targetTxn.transaction_id || String(targetTxn.id);
+      const pId = targetTxn.txn_id || targetTxn.transaction_id || (targetTxn.id != null ? String(targetTxn.id) : '');
       if (pId) {
         try {
           const fetchedReceipt = await receiptService.getReceipt(pId);
@@ -717,7 +717,7 @@ export default function TaxiOwnerDashboard({
 
           {/* Trip Cards dynamically rendered */}
           {recentTrips.map((txn, index) => {
-            const txnCode = txn.txn_id || txn.transaction_id || `#TXN-${txn.id}`;
+            const txnCode = txn.txn_id || txn.transaction_id || (txn.id != null ? (String(txn.id).startsWith('#') ? String(txn.id) : `#${txn.id}`) : '--');
             const timeText = formatTxnTime(txn);
             const method = (txn.payment_method || 'card').toLowerCase();
             const isTap = method.includes('tap') || method.includes('nfc');

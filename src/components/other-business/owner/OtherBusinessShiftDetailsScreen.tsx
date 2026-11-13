@@ -266,7 +266,7 @@ export default function OtherBusinessShiftDetailsScreen({
         dateTime: dt,
         paymentMethod: r?.payment_method || txn.payment_method,
         cardBrand: r?.card_brand,
-        paymentId: r?.payment_id || txn.transaction_id,
+        paymentId: r?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '--'),
         isTaxi,
         taxiNumber: taxiNo,
         dcNumber: dcNo,
@@ -368,7 +368,7 @@ export default function OtherBusinessShiftDetailsScreen({
 
   // Open full digital receipt screen
   const handleOpenReceipt = (txn: ShiftDetailsTransactionItem) => {
-    const payId = txn.receipt?.payment_id || txn.transaction_id;
+    const payId = txn.receipt?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '');
     if (txn.receipt && payId) {
       receiptService.setCachedReceipt(payId, txn.receipt);
     }
@@ -377,7 +377,7 @@ export default function OtherBusinessShiftDetailsScreen({
     router.push({
       pathname: '/(tabs)/receipt-details',
       params: {
-        paymentId: payId,
+        paymentId: payId || '',
         amount: String(txn.amount),
         method: isCash ? 'cash' : isTap ? 'tap' : 'card',
         cardBrand: txn.receipt?.card_brand || '',
@@ -388,6 +388,8 @@ export default function OtherBusinessShiftDetailsScreen({
         abn: txn.receipt?.abn || '',
         phone: txn.receipt?.phone_no || '',
         dateStr: txn.receipt?.date_time || txn.date,
+        service_charges: String(txn.receipt?.payment_break_down?.service_fee || 0),
+        receiptJson: txn.receipt ? JSON.stringify(txn.receipt) : '',
       },
     });
   };

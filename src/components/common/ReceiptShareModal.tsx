@@ -76,16 +76,14 @@ export default function ReceiptShareModal({
   const dt = receiptInput.dateTime || formatSydneyToUserDateTime(new Date());
 
   const bk = receiptInput.breakdown;
-  const hasBk = Boolean(bk && (bk.base_amount !== undefined || bk.payable_amount !== undefined));
+  const bkTotal =
+    bk?.payable_amount !== undefined ? Number(bk.payable_amount) : Number(receiptInput.amount) || 0;
+  const bkFee = bk?.service_fee !== undefined ? Number(bk.service_fee) : 0;
   const bkBase =
     bk?.base_amount !== undefined
       ? Number(bk.base_amount)
-      : bk?.payable_amount !== undefined && bk?.service_fee !== undefined
-      ? Number(bk.payable_amount) - Number(bk.service_fee)
-      : null;
-  const bkFee = bk?.service_fee !== undefined ? Number(bk.service_fee) : 0;
-  const bkTotal =
-    bk?.payable_amount !== undefined ? Number(bk.payable_amount) : Number(receiptInput.amount) || 0;
+      : Math.max(0, bkTotal - bkFee);
+  const hasBk = true;
 
   const hasAd = Boolean(receiptInput.hasAdBanner && receiptInput.bannerImageUrl);
   const bannerUrl = normalizeImageUrl(receiptInput.bannerImageUrl);

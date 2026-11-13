@@ -33,6 +33,7 @@ export default function PaymentSuccessScreen() {
     timestamp?: string;
     pickup?: string;
     dropoff?: string;
+    service_charges?: string;
   }>();
 
   const rawAmount = params.amount || '0.00';
@@ -45,7 +46,11 @@ export default function PaymentSuccessScreen() {
     ? 'Cash'
     : params.cardBrand || (isTap ? 'Contactless' : 'Card');
   const cardLast4 = isCash ? '' : params.cardLast4 || '••••';
-  const paymentId = params.paymentId || (isCash ? 'CASH-PAYMENT' : '--');
+  const rawPaymentId = params.paymentId;
+  const paymentId =
+    rawPaymentId && rawPaymentId !== 'CASH-PAYMENT' && rawPaymentId !== '--'
+      ? rawPaymentId
+      : '--';
 
   // Formatted timestamp converting server/Australia/Sydney timestamp to device local timezone
   const formattedDate = useMemo(() => {
@@ -96,7 +101,7 @@ export default function PaymentSuccessScreen() {
     let serverDateStr = formattedDate;
 
     // Fetch official server receipt if valid payment ID exists
-    if (paymentId && paymentId !== '--' && paymentId !== 'CASH-PAYMENT') {
+    if (paymentId && paymentId !== '--') {
       setIsFetchingReceipt(true);
       try {
         const receipt = await receiptService.getReceipt(paymentId);
@@ -136,7 +141,7 @@ export default function PaymentSuccessScreen() {
       }
     }
 
-    const finalPaymentId = serverReceipt?.payment_id || paymentId;
+    const finalPaymentId = serverReceipt?.payment_id || (paymentId !== '--' ? paymentId : '');
     const finalMethod = (serverReceipt?.payment_type || serverReceipt?.payment_method || (isCash ? 'cash' : isTap ? 'tap' : 'card')).toLowerCase();
 
     router.push({
@@ -144,8 +149,8 @@ export default function PaymentSuccessScreen() {
       params: {
         amount: realAmount,
         method: finalMethod.includes('cash') ? 'cash' : finalMethod.includes('tap') ? 'tap' : 'card',
-        paymentId: finalPaymentId,
-        txnId: paymentId,
+        paymentId: finalPaymentId || '',
+        txnId: paymentId !== '--' ? paymentId : '',
         cardLast4,
         cardBrand: realCardBrand,
         dateStr: serverDateStr,
@@ -158,6 +163,7 @@ export default function PaymentSuccessScreen() {
         businessName: serverReceipt?.business_name || businessName,
         businessLogo: serverReceipt?.business_logo || '',
         receiptJson: serverReceipt ? JSON.stringify(serverReceipt) : '',
+        service_charges: params.service_charges || '',
       },
     });
   };

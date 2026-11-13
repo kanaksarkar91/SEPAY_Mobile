@@ -318,7 +318,7 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setStatusMessage('Payment Successful');
         setIsProcessing(false);
 
-        const realTxnId = intentRes.paymentIntentId || `pi_${Date.now()}`;
+        const realTxnId = intentRes.paymentIntentId || (intentRes as any).id || '--';
         return {
           success: true,
           paymentIntent: {
@@ -330,7 +330,7 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             status: 'succeeded',
             charges: [
               {
-                id: intentRes.charges?.[0]?.id || `ch_${realTxnId.replace('pi_', '')}`,
+                id: intentRes.charges?.[0]?.id || (realTxnId !== '--' ? realTxnId : '--'),
                 amount: intentRes.amount,
                 paymentMethodDetails: {
                   type: 'card_present',

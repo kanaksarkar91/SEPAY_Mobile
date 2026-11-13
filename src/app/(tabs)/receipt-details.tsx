@@ -52,6 +52,7 @@ function TaxiReceiptScreen() {
     businessName?: string;
     businessLogo?: string;
     receiptJson?: string;
+    service_charges?: string;
   }>();
 
   const rawAmount = params.amount || '0.00';
@@ -78,12 +79,14 @@ function TaxiReceiptScreen() {
     );
   });
 
-  const paymentId =
-    receiptData?.payment_id || params.paymentId || params.txnId || (isCash ? 'CASH-PAYMENT' : '--');
+  const rawParamId =
+    (params.paymentId && params.paymentId !== '--' && params.paymentId !== 'CASH-PAYMENT' ? params.paymentId : '') ||
+    (params.txnId && params.txnId !== '--' && params.txnId !== 'CASH-PAYMENT' ? params.txnId : '');
+  const paymentId = receiptData?.payment_id || rawParamId || '--';
 
   useEffect(() => {
-    const lookupId = params.txnId || params.paymentId;
-    if (lookupId && lookupId !== '--' && lookupId !== 'CASH-PAYMENT') {
+    const lookupId = rawParamId;
+    if (lookupId) {
       let isMounted = true;
       receiptService
         .getReceipt(lookupId)
@@ -97,7 +100,7 @@ function TaxiReceiptScreen() {
         isMounted = false;
       };
     }
-  }, [params.paymentId, params.txnId]);
+  }, [rawParamId]);
 
   const cachedHeader = getCachedDashboardHeader();
   const cachedUser = tokenStorage.getCachedUser();
@@ -213,23 +216,33 @@ function TaxiReceiptScreen() {
   const decimalPart = (effectiveNumericAmount % 1).toFixed(2).split('.')[1] || '00';
 
   // Payment Breakdown (POST /api/payment/fees or GET /api/receipt/:id)
-  const breakdown =
-    receiptData?.payment_break_down ||
-    (receiptData as any)?.payment_breakdown;
+  const breakdown = useMemo(() => {
+    if (receiptData?.payment_break_down) {
+      return receiptData.payment_break_down;
+    }
+    if ((receiptData as any)?.payment_breakdown) {
+      return (receiptData as any).payment_breakdown;
+    }
+    const paramFee =
+      params.service_charges !== undefined && params.service_charges !== ''
+        ? Number(params.service_charges)
+        : null;
+    const fee = paramFee !== null && !isNaN(paramFee) && paramFee >= 0 ? paramFee : 0;
+    return {
+      payable_amount: effectiveNumericAmount,
+      service_fee: fee,
+      base_amount: Math.max(0, effectiveNumericAmount - fee),
+    };
+  }, [receiptData, params.service_charges, effectiveNumericAmount]);
 
-  const hasBreakdown = Boolean(
-    breakdown &&
-    (breakdown.base_amount !== undefined ||
-      breakdown.service_fee !== undefined ||
-      breakdown.payable_amount !== undefined)
-  );
+  const hasBreakdown = true;
 
   const breakdownBaseAmount =
     breakdown?.base_amount !== undefined && breakdown?.base_amount !== null
       ? Number(breakdown.base_amount)
       : breakdown?.payable_amount !== undefined && breakdown?.service_fee !== undefined
         ? Number(breakdown.payable_amount) - Number(breakdown.service_fee)
-        : null;
+        : effectiveNumericAmount;
 
   const breakdownServiceFee =
     breakdown?.service_fee !== undefined && breakdown?.service_fee !== null

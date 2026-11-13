@@ -180,7 +180,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ navigation, 
         const last4 = cardDetails?.last4 || passedCard?.last4 || '••••';
 
         // Real Stripe Transaction ID (charge.id like ch_... or paymentIntent.id like pi_...)
-        const realTxnId = charge?.id || pi.id || 'pi_terminal_' + Date.now();
+        const realTxnId = pi.id || (pi as any).paymentIntentId || charge?.paymentIntentId || '--';
 
         const transaction: Transaction = {
           id: realTxnId,
