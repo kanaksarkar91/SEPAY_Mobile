@@ -25,6 +25,7 @@ import {
   getExportFilename,
 } from '../../services/receiptExportService';
 import { normalizeImageUrl } from '../../utils/assetUtils';
+import { formatSydneyToUserDateTime } from '../../utils/dateUtils';
 
 export interface ReceiptShareModalProps {
   visible: boolean;
@@ -72,7 +73,7 @@ export default function ReceiptShareModal({
   const cardBrand = (receiptInput.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
   const paymentMethodLabel = receiptInput.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
   const payId = receiptInput.paymentId || '--';
-  const dt = receiptInput.dateTime || new Date().toLocaleString();
+  const dt = receiptInput.dateTime || formatSydneyToUserDateTime(new Date());
 
   const bk = receiptInput.breakdown;
   const hasBk = Boolean(bk && (bk.base_amount !== undefined || bk.payable_amount !== undefined));

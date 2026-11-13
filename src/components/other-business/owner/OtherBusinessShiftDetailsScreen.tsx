@@ -31,10 +31,11 @@ import {
   ShiftSlipInput,
 } from '../../../services/receiptExportService';
 import {
-  formatSydneyToUserDate,
   formatSydneyToUserTime,
-  formatSydneyToUserDateTime,
   formatShiftRecordTime,
+  formatTxnTime,
+  formatTxnDate,
+  formatTxnDateTime,
 } from '../../../utils/dateUtils';
 import LiveBadge from '../../common/LiveBadge';
 
@@ -204,7 +205,7 @@ export default function OtherBusinessShiftDetailsScreen({
     const groups: { [dateStr: string]: { txns: ShiftDetailsTransactionItem[]; total: number } } = {};
 
     filteredTransactions.forEach((txn) => {
-      const groupDate = formatSydneyToUserDate(txn.date) || txn.date.split(' ')[0] || 'Transactions';
+      const groupDate = formatTxnDate(txn) || 'Transactions';
       if (!groups[groupDate]) {
         groups[groupDate] = { txns: [], total: 0 };
       }
@@ -253,7 +254,7 @@ export default function OtherBusinessShiftDetailsScreen({
       const pickup = r?.pickup_location || txn.pickup_location || '';
       const dropoff = r?.drop_location || txn.drop_location || '';
       const numAmount = r?.amount !== undefined ? Number(r.amount) : Number(txn.amount);
-      const dt = formatSydneyToUserDateTime(r?.date_time || txn.date) || txn.date;
+      const dt = formatTxnDateTime(txn);
 
       return {
         businessName: biz,
@@ -661,7 +662,7 @@ export default function OtherBusinessShiftDetailsScreen({
                 {group.transactions.map((txn: ShiftDetailsTransactionItem) => {
                   const isCard = (txn.payment_method || '').toLowerCase().includes('card');
                   const isCash = (txn.payment_method || '').toLowerCase().includes('cash');
-                  const formattedTime = formatSydneyToUserTime(txn.date) || txn.date;
+                  const formattedTime = formatTxnTime(txn);
                   const pickupLoc = txn.pickup_location || txn.receipt?.pickup_location;
                   const dropLoc = txn.drop_location || txn.receipt?.drop_location;
                   const hasRoute = Boolean(pickupLoc || dropLoc);

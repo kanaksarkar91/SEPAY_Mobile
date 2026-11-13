@@ -29,6 +29,7 @@ import { printReceipt, buildReceiptInputFromRecentTxn } from '../../../services/
 import {
   formatSydneyToUserTime,
   formatSydneyShiftRange,
+  formatTxnTime,
 } from '../../../utils/dateUtils';
 
 interface OtherBusinessEmployeeDashboardProps {
@@ -658,13 +659,7 @@ export default function OtherBusinessEmployeeDashboard({
           {/* Transaction Cards dynamically rendered from API */}
           {recentTxns.map((txn, index) => {
             const txnCode = txn.txn_id || txn.transaction_id || `#TXN-${txn.id}`;
-            const timeText =
-              (txn.date ? formatSydneyToUserTime(txn.date) : null) ||
-              (txn.created_at ? formatSydneyToUserTime(txn.created_at) : null) ||
-              txn.time ||
-              txn.time_formatted ||
-              txn.created_at ||
-              '--';
+            const timeText = formatTxnTime(txn);
             const method = (txn.payment_method || 'card').toLowerCase();
             const isTap = method.includes('tap') || method.includes('nfc');
 

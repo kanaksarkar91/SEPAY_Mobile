@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform, Share } from 'react-native';
 import { getAssetDataUri, normalizeImageUrl } from '../utils/assetUtils';
-import { formatSydneyToUserDateTime } from '../utils/dateUtils';
+import { formatSydneyToUserDateTime, formatTxnDateTime } from '../utils/dateUtils';
 import type { PaymentBreakDown } from './receiptService';
 import type { RecentTransactionItem } from './dashboardService';
 
@@ -114,7 +114,7 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   const cardBrand = (input.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
   const paymentMethodLabel = input.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
   const payId = input.paymentId || '--';
-  const dt = input.dateTime || new Date().toLocaleString();
+  const dt = input.dateTime || formatSydneyToUserDateTime(new Date());
 
   const bk = input.breakdown;
   const hasBk = Boolean(bk && (bk.base_amount !== undefined || bk.payable_amount !== undefined));
@@ -367,7 +367,7 @@ export function buildReceiptInputFromRecentTxn(
   const phoneVal = r?.phone_no || r?.phone || '--';
   const numAmount = r?.amount !== undefined ? Number(r.amount) : Number(txn.amount);
   const amountFmt = r?.amount_formatted || txn.amount_formatted || `$${numAmount.toFixed(2)}`;
-  const dt = r?.date_time ? formatSydneyToUserDateTime(r.date_time) : (txn.date || txn.created_at || '--');
+  const dt = formatTxnDateTime({ ...txn, receipt: r });
   const method = r?.payment_method || txn.payment_method_label || txn.payment_method || 'Card';
   const paymentType = r?.payment_type || (method.toLowerCase().includes('cash') ? 'Cash' : method.toLowerCase().includes('tap') ? 'Tap & Go' : 'Card');
   const cardBrand = r?.card_brand || undefined;

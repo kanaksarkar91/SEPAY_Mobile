@@ -95,7 +95,7 @@ export default function OtherBusinessReceiptScreen() {
 
   const dateStr =
     (params.dateStr && params.dateStr.trim() !== '' && params.dateStr !== '--'
-      ? params.dateStr
+      ? formatSydneyToUserDateTime(params.dateStr) || params.dateStr
       : null) || formatSydneyToUserDateTime(new Date());
 
   const cachedHeader = getCachedDashboardHeader();

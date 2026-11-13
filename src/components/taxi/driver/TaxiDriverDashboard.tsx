@@ -26,7 +26,7 @@ import {
 import { shiftService, onShiftChange } from '../../../services/shiftService';
 import { receiptService } from '../../../services/receiptService';
 import { printReceipt, buildReceiptInputFromRecentTxn } from '../../../services/receiptExportService';
-import { formatSydneyToUserTime, formatSydneyShiftRange } from '../../../utils/dateUtils';
+import { formatSydneyToUserTime, formatSydneyShiftRange, formatTxnTime } from '../../../utils/dateUtils';
 
 interface TaxiDriverDashboardProps {
   businessName?: string;
@@ -723,12 +723,7 @@ export default function TaxiDriverDashboard({
           {/* Trip Cards dynamically rendered */}
           {recentTrips.map((txn, index) => {
             const txnCode = txn.txn_id || txn.transaction_id || `#TXN-${txn.id}`;
-            const timeText =
-              (txn.date ? formatSydneyToUserTime(txn.date) : null) ||
-              (txn.created_at ? formatSydneyToUserTime(txn.created_at) : null) ||
-              txn.time ||
-              txn.time_formatted ||
-              '--';
+            const timeText = formatTxnTime(txn);
             const method = (txn.payment_method || 'card').toLowerCase();
             const isTap = method.includes('tap') || method.includes('nfc');
             const isCash = method.includes('cash');

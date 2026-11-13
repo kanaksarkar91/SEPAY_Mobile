@@ -71,7 +71,7 @@ const DRIVERS_LIST: TaxiDriver[] = [
 
 export default function ShiftHistoryScreen({
   onSelectShift,
-  taxiNumber = 'M6022',
+  taxiNumber = '',
   isDriver = false,
 }: ShiftHistoryScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');

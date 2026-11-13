@@ -199,18 +199,13 @@ function TaxiReceiptScreen() {
     if (receiptDateTime) {
       return formatSydneyToUserDateTime(receiptDateTime);
     }
-    if (params.dateStr) return params.dateStr;
-    const d = params.timestamp ? new Date(params.timestamp) : new Date();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
-    let hours = d.getHours();
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12 || 12;
-    const hoursStr = String(hours).padStart(2, '0');
-    return `${day} ${month} ${year}, ${hoursStr}:${minutes} ${ampm}`;
+    if (params.dateStr) {
+      return formatSydneyToUserDateTime(params.dateStr) || params.dateStr;
+    }
+    if (params.timestamp) {
+      return formatSydneyToUserDateTime(params.timestamp);
+    }
+    return formatSydneyToUserDateTime(new Date());
   }, [receiptDateTime, params.timestamp, params.dateStr]);
 
   // Amount formatting: integer and decimal parts
