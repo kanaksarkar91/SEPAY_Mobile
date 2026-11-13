@@ -341,7 +341,7 @@ export default function ShiftHistoryScreen({
                   <View style={styles.paidBadge}>
                     <View style={styles.paidDot} />
                     <Text style={styles.paidBadgeText}>
-                      PAID{shift.paidDate ? ` on ${shift.paidDate}` : ''}
+                      PAID
                     </Text>
                   </View>
                 )}

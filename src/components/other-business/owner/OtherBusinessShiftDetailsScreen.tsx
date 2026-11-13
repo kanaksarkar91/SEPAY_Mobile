@@ -510,7 +510,7 @@ export default function OtherBusinessShiftDetailsScreen({
                   <View style={styles.paidBadge}>
                     <View style={styles.paidDot} />
                     <Text style={styles.paidBadgeText}>
-                      PAID{shiftDetails?.shift_info?.paid_date ? ` on ${shiftDetails.shift_info.paid_date}` : ''}
+                      PAID
                     </Text>
                   </View>
                 ) : (

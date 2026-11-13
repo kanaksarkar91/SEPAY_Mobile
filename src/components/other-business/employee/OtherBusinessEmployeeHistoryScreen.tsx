@@ -588,7 +588,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
                   <View style={styles.paidBadge}>
                     <View style={styles.paidDot} />
                     <Text style={styles.paidBadgeText}>
-                      PAID{shift.paid_date ? ` on ${shift.paid_date}` : ''}
+                      PAID
                     </Text>
                   </View>
                 ) : (

@@ -325,8 +325,7 @@ export default function TaxiDriverHistoryScreen({
             <View style={styles.paidBadge}>
               <View style={styles.paidDot} />
               <Text style={styles.paidBadgeText}>
-                PAID{shift.paid_date ? ` on ${shift.paid_date}` : ''}
-              </Text>
+                PAID</Text>
             </View>
           )}
         </View>

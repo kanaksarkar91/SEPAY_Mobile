@@ -463,8 +463,8 @@ export default function OtherBusinessTransactionsScreen({
       const badgeText = isPartialPaid
         ? '● PARTIAL PAID'
         : isPaid
-        ? `● PAID (${shift.paid_date || 'Settled'})`
-        : '● UNPAID / AWAITING';
+          ? `● PAID (${shift.paid_date || 'Settled'})`
+          : '● UNPAID / AWAITING';
 
       const html = `
         <!DOCTYPE html>
@@ -868,7 +868,7 @@ export default function OtherBusinessTransactionsScreen({
                   <View style={styles.paidBadge}>
                     <View style={styles.paidDot} />
                     <Text style={styles.paidBadgeText}>
-                      PAID{shift.paid_date ? ` on ${shift.paid_date}` : ''}
+                      PAID
                     </Text>
                   </View>
                 )}

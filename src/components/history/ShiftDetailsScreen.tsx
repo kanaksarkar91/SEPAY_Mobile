@@ -366,7 +366,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
                   <View style={styles.paidBadge}>
                     <View style={styles.paidBadgeDot} />
                     <Text style={styles.paidBadgeText}>
-                      PAID{shift.paidDate ? ` on ${shift.paidDate}` : ''}
+                      PAID
                     </Text>
                   </View>
                 );
