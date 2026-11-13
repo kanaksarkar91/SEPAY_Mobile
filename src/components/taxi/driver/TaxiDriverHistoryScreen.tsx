@@ -284,16 +284,16 @@ export default function TaxiDriverHistoryScreen({
 
   const summary = shiftHistoryData?.summary;
   const settledAmount = summary?.settled_paid_formatted || '$0.00';
-  const settledSubtitle = summary?.settled_paid_subtitle || `${summary?.settled_paid_shifts_count ?? 0} shifts completed`;
   const pendingAmount = summary?.pending_unpaid_formatted || '$0.00';
-  const pendingSubtitle = summary?.pending_unpaid_subtitle || `${summary?.pending_unpaid_shifts_count ?? 0} shifts awaiting`;
 
   // Header taxi number
   const displayTaxiNo = shiftHistoryData?.header?.taxi_no || taxiNumber;
 
   // Render Shift Record Card
   const renderShiftItem = ({ item: shift }: { item: ShiftRecordItem }) => {
-    const isUnpaid = shift.is_paid === false || shift.status === 'UNPAID' || shift.status === 'unpaid';
+    const rawStatus = (shift.status || '').toUpperCase().trim();
+    const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+    const isUnpaid = !isPartialPaid && (shift.is_paid === false || rawStatus === 'UNPAID');
     const isLive = Boolean(shift.live);
     const shiftTime = formatShiftRecordTime(shift);
     const displayId = shift.display_shift_id || `SH#${shift.shift_id || shift.id}`;
@@ -311,7 +311,12 @@ export default function TaxiDriverHistoryScreen({
             {isLive && <LiveBadge />}
           </View>
 
-          {isUnpaid ? (
+          {isPartialPaid ? (
+            <View style={styles.partialPaidBadge}>
+              <View style={styles.partialPaidDot} />
+              <Text style={styles.partialPaidBadgeText}>PARTIAL PAID</Text>
+            </View>
+          ) : isUnpaid ? (
             <View style={styles.unpaidBadge}>
               <View style={styles.unpaidDot} />
               <Text style={styles.unpaidBadgeText}>UNPAID</Text>
@@ -528,7 +533,6 @@ export default function TaxiDriverHistoryScreen({
               <Text style={styles.metricBoxTitle}>Settled / Paid</Text>
             </View>
             <Text style={styles.metricPaidAmount}>{settledAmount}</Text>
-            <Text style={styles.metricSubtext}>{settledSubtitle}</Text>
           </View>
 
           {/* Pending / Unpaid */}
@@ -538,7 +542,6 @@ export default function TaxiDriverHistoryScreen({
               <Text style={styles.metricBoxTitle}>Pending / Unpaid</Text>
             </View>
             <Text style={styles.metricUnpaidAmount}>{pendingAmount}</Text>
-            <Text style={styles.metricSubtext}>{pendingSubtitle}</Text>
           </View>
         </View>
       </View>
@@ -918,6 +921,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#059669',
+  },
+  partialPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  partialPaidDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F97316',
+    marginRight: 5,
+  },
+  partialPaidBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EA580C',
   },
   unpaidBadge: {
     flexDirection: 'row',

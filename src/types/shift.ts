@@ -20,7 +20,7 @@ export interface ShiftRecord {
   dateText: string; // e.g. '26 Oct 2026'
   timeRange: string; // e.g. '07:30 AM – 05:00 PM'
   duration: string; // e.g. '9.5 hrs'
-  status: 'paid' | 'unpaid';
+  status: 'paid' | 'unpaid' | 'PARTIAL PAID' | 'partial_paid' | string;
   paidDate?: string; // e.g. '30 Oct 2026'
   tripsCount: number; // e.g. 14
   totalAmount: number; // e.g. 485.00

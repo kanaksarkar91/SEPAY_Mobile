@@ -493,7 +493,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
               </TouchableOpacity>
             </View>
 
-            {/* ── 3. TOTAL SHIFT COLLECTIONS CARD ── */}
+            {/* ── 3. TOTAL TIONS CARD ── */}
             <View style={styles.summaryCard}>
               <Text style={styles.summaryCardLabel}>SHIFT COLLECTIONS SUMMARY</Text>
 
@@ -508,9 +508,6 @@ export default function OtherBusinessEmployeeHistoryScreen({
                   <Text style={styles.metricPaidAmount}>
                     {summary?.settled_paid_formatted || '$0.00'}
                   </Text>
-                  <Text style={styles.metricBoxSub}>
-                    {summary?.settled_paid_subtitle || '0 shifts completed'}
-                  </Text>
                 </View>
 
                 {/* Pending / Unpaid */}
@@ -521,9 +518,6 @@ export default function OtherBusinessEmployeeHistoryScreen({
                   </View>
                   <Text style={styles.metricUnpaidAmount}>
                     {summary?.pending_unpaid_formatted || '$0.00'}
-                  </Text>
-                  <Text style={styles.metricBoxSub}>
-                    {summary?.pending_unpaid_subtitle || '0 shifts awaiting'}
                   </Text>
                 </View>
               </View>
@@ -552,7 +546,10 @@ export default function OtherBusinessEmployeeHistoryScreen({
           </>
         }
         renderItem={({ item: shift }) => {
-          const isPaid = shift.status === 'PAID';
+          const rawStatus = (shift.status || '').toUpperCase().trim();
+          const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+          const isPaid = !isPartialPaid && (rawStatus === 'PAID' || shift.is_paid === true);
+          const isUnpaid = !isPartialPaid && !isPaid;
           const isLive = Boolean(shift.live);
           const { dateText, timeRangeText } = formatShiftRecordTime({
             start_at: shift.start_at,
@@ -567,7 +564,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
               key={String(shift.id)}
               style={[
                 styles.shiftCard,
-                !isPaid && styles.shiftCardUnpaid,
+                isUnpaid && styles.shiftCardUnpaid,
                 isLive && styles.shiftCardLive,
               ]}
               activeOpacity={0.88}
@@ -576,13 +573,18 @@ export default function OtherBusinessEmployeeHistoryScreen({
               {/* Top Row: Shift ID + Live Badge + Status Badge */}
               <View style={styles.cardHeaderRow}>
                 <View style={styles.shiftIdWrap}>
-                  <Text style={[styles.cardShiftId, !isPaid && styles.cardShiftIdUnpaid]}>
+                  <Text style={[styles.cardShiftId, isUnpaid && styles.cardShiftIdUnpaid]}>
                     {shift.display_shift_id}
                   </Text>
                   {isLive && <LiveBadge />}
                 </View>
 
-                {isPaid ? (
+                {isPartialPaid ? (
+                  <View style={styles.partialPaidBadge}>
+                    <View style={styles.partialPaidDot} />
+                    <Text style={styles.partialPaidBadgeText}>PARTIAL PAID</Text>
+                  </View>
+                ) : isPaid ? (
                   <View style={styles.paidBadge}>
                     <View style={styles.paidDot} />
                     <Text style={styles.paidBadgeText}>
@@ -624,15 +626,15 @@ export default function OtherBusinessEmployeeHistoryScreen({
                   </Text>
 
                   <View style={styles.txnsTotalRow}>
-                    <View style={[styles.txnsCountPill, !isPaid && styles.txnsCountPillUnpaid]}>
-                      <Text style={[styles.txnsCountText, !isPaid && styles.txnsCountTextUnpaid]}>
+                    <View style={[styles.txnsCountPill, isUnpaid && styles.txnsCountPillUnpaid]}>
+                      <Text style={[styles.txnsCountText, isUnpaid && styles.txnsCountTextUnpaid]}>
                         {shift.total_txns} Txns
                       </Text>
                     </View>
 
                     <Text style={styles.totalLabel}>
-                      {isPaid ? 'Total: ' : 'Pending: '}
-                      <Text style={[styles.totalValue, !isPaid && styles.totalValueUnpaid]}>
+                      {isUnpaid ? 'Pending: ' : 'Total: '}
+                      <Text style={[styles.totalValue, isUnpaid && styles.totalValueUnpaid]}>
                         {shift.amount_formatted}
                       </Text>
                     </Text>
@@ -641,17 +643,17 @@ export default function OtherBusinessEmployeeHistoryScreen({
 
                 {/* View Trips Button */}
                 <TouchableOpacity
-                  style={[styles.viewTripsBtn, !isPaid && styles.viewTripsBtnUnpaid]}
+                  style={[styles.viewTripsBtn, isUnpaid && styles.viewTripsBtnUnpaid]}
                   activeOpacity={0.7}
                   onPress={() => handleCardPress(shift)}
                 >
-                  <Text style={[styles.viewTripsText, !isPaid && styles.viewTripsTextUnpaid]}>
+                  <Text style={[styles.viewTripsText, isUnpaid && styles.viewTripsTextUnpaid]}>
                     View Trips
                   </Text>
                   <Feather
                     name="chevron-right"
                     size={15}
-                    color={isPaid ? '#2563EB' : '#B45309'}
+                    color={isUnpaid ? '#B45309' : '#2563EB'}
                   />
                 </TouchableOpacity>
               </View>
@@ -659,14 +661,14 @@ export default function OtherBusinessEmployeeHistoryScreen({
               {/* Bottom Row: Card & Tap & Go Breakdowns */}
               <View style={styles.breakdownRow}>
                 {/* Card Pill */}
-                <View style={[styles.breakdownPill, !isPaid && styles.breakdownPillUnpaid]}>
+                <View style={[styles.breakdownPill, isUnpaid && styles.breakdownPillUnpaid]}>
                   <Ionicons
                     name="card-outline"
                     size={13}
-                    color={isPaid ? '#64748B' : '#B45309'}
+                    color={isUnpaid ? '#B45309' : '#64748B'}
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={[styles.breakdownText, !isPaid && styles.breakdownTextUnpaid]}>
+                  <Text style={[styles.breakdownText, isUnpaid && styles.breakdownTextUnpaid]}>
                     Card:{' '}
                     <Text style={styles.breakdownBold}>
                       {shift.card?.txns ?? 0} txns • {shift.card?.amount_formatted ?? '$0.00'}
@@ -675,14 +677,14 @@ export default function OtherBusinessEmployeeHistoryScreen({
                 </View>
 
                 {/* Tap & Go Pill */}
-                <View style={[styles.breakdownPill, !isPaid && styles.breakdownPillUnpaid]}>
+                <View style={[styles.breakdownPill, isUnpaid && styles.breakdownPillUnpaid]}>
                   <Ionicons
                     name="radio-outline"
                     size={13}
-                    color={isPaid ? '#64748B' : '#B45309'}
+                    color={isUnpaid ? '#B45309' : '#64748B'}
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={[styles.breakdownText, !isPaid && styles.breakdownTextUnpaid]}>
+                  <Text style={[styles.breakdownText, isUnpaid && styles.breakdownTextUnpaid]}>
                     Tap & Go:{' '}
                     <Text style={styles.breakdownBold}>
                       {shift.tap_and_go?.txns ?? 0} txns • {shift.tap_and_go?.amount_formatted ?? '$0.00'}
@@ -1098,6 +1100,28 @@ const styles = StyleSheet.create({
   paidDateText: {
     fontWeight: '500',
     color: '#047857',
+  },
+  partialPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 4,
+  },
+  partialPaidDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F97316',
+  },
+  partialPaidBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#EA580C',
   },
   unpaidBadge: {
     flexDirection: 'row',

@@ -455,7 +455,16 @@ export default function OtherBusinessTransactionsScreen({
         time_range: shift.time_range,
         session_date: shift.session_date,
       });
-      const isPaid = shift.status === 'PAID';
+      const rawStatus = (shift.status || '').toUpperCase().trim();
+      const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+      const isPaid = !isPartialPaid && (shift.is_paid === true || rawStatus === 'PAID');
+      const badgeBg = isPartialPaid ? '#FFF7ED' : isPaid ? '#ECFDF5' : '#FFFBEB';
+      const badgeColor = isPartialPaid ? '#EA580C' : isPaid ? '#059669' : '#B45309';
+      const badgeText = isPartialPaid
+        ? '● PARTIAL PAID'
+        : isPaid
+        ? `● PAID (${shift.paid_date || 'Settled'})`
+        : '● UNPAID / AWAITING';
 
       const html = `
         <!DOCTYPE html>
@@ -467,7 +476,7 @@ export default function OtherBusinessTransactionsScreen({
               .header { border-bottom: 2px dashed #E2E8F0; padding-bottom: 16px; margin-bottom: 16px; text-align: center; }
               .title { font-size: 22px; font-weight: 800; margin: 0; color: #0F172A; }
               .sub { font-size: 13px; color: #64748B; margin-top: 4px; }
-              .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-top: 8px; background: ${isPaid ? '#ECFDF5' : '#FFFBEB'}; color: ${isPaid ? '#059669' : '#B45309'}; }
+              .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-top: 8px; background: ${badgeBg}; color: ${badgeColor}; }
               .card { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px; margin: 16px 0; }
               .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
               .label { color: #64748B; }
@@ -479,7 +488,7 @@ export default function OtherBusinessTransactionsScreen({
             <div class="header">
               <h1 class="title">${businessName}</h1>
               <p class="sub">Shift Audit Report • ${shift.user_name || 'Staff'} (${shift.employee_code || '--'})</p>
-              <div class="badge">${isPaid ? `● PAID (${shift.paid_date || 'Settled'})` : '● UNPAID / AWAITING'}</div>
+              <div class="badge">${badgeText}</div>
             </div>
 
             <div class="card">
@@ -779,9 +788,6 @@ export default function OtherBusinessTransactionsScreen({
                   <Text style={styles.metricBoxAmountPaid}>
                     {summary?.settled_paid_formatted || '$0.00'}
                   </Text>
-                  <Text style={styles.metricBoxSubtext}>
-                    {summary?.settled_paid_subtitle || '0 shifts completed'}
-                  </Text>
                 </View>
 
                 {/* Box 2: Pending / Unpaid */}
@@ -792,9 +798,6 @@ export default function OtherBusinessTransactionsScreen({
                   </View>
                   <Text style={styles.metricBoxAmountUnpaid}>
                     {summary?.pending_unpaid_formatted || '$0.00'}
-                  </Text>
-                  <Text style={styles.metricBoxSubtext}>
-                    {summary?.pending_unpaid_subtitle || '0 shifts awaiting'}
                   </Text>
                 </View>
               </View>
@@ -821,7 +824,9 @@ export default function OtherBusinessTransactionsScreen({
           </>
         }
         renderItem={({ item: shift }) => {
-          const isUnpaid = shift.status === 'UNPAID';
+          const rawStatus = (shift.status || '').toUpperCase().trim();
+          const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+          const isUnpaid = !isPartialPaid && (shift.status === 'UNPAID' || shift.is_paid === false);
           const isLive = Boolean(shift.live);
           const { dateText, timeRangeText } = formatShiftRecordTime({
             start_at: shift.start_at,
@@ -849,7 +854,12 @@ export default function OtherBusinessTransactionsScreen({
                   {isLive && <LiveBadge />}
                 </View>
 
-                {isUnpaid ? (
+                {isPartialPaid ? (
+                  <View style={styles.partialPaidBadge}>
+                    <View style={styles.partialPaidDot} />
+                    <Text style={styles.partialPaidBadgeText}>PARTIAL PAID</Text>
+                  </View>
+                ) : isUnpaid ? (
                   <View style={styles.unpaidBadge}>
                     <View style={styles.unpaidDot} />
                     <Text style={styles.unpaidBadgeText}>UNPAID</Text>
@@ -1720,6 +1730,29 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '800',
     color: '#065F46',
+    letterSpacing: 0.3,
+  },
+  partialPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  partialPaidDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#F97316',
+  },
+  partialPaidBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#EA580C',
     letterSpacing: 0.3,
   },
   unpaidBadge: {

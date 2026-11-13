@@ -280,9 +280,6 @@ export default function ShiftHistoryScreen({
                   minimumFractionDigits: 2,
                 })}
               </Text>
-              <Text style={styles.metricSubtext}>
-                {MOCK_SHIFT_STATS.paidShiftsCount} shifts completed
-              </Text>
             </View>
 
             {/* Box 2: Pending / Unpaid */}
@@ -296,9 +293,6 @@ export default function ShiftHistoryScreen({
                   minimumFractionDigits: 2,
                 })}
               </Text>
-              <Text style={styles.metricSubtext}>
-                {MOCK_SHIFT_STATS.unpaidShiftsCount} shifts awaiting
-              </Text>
             </View>
           </View>
         </View>
@@ -311,7 +305,9 @@ export default function ShiftHistoryScreen({
 
         {/* ── SHIFT RECORDS LIST ── */}
         {filteredShifts.map((shift) => {
-          const isUnpaid = shift.status === 'unpaid';
+          const rawStatus = (shift.status || '').toUpperCase().trim();
+          const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+          const isUnpaid = !isPartialPaid && (rawStatus === 'UNPAID' || shift.status === 'unpaid');
           const displayShiftId =
             isDriver && taxiNumber
               ? shift.id.replace(/M[0-9]{4}/g, taxiNumber)
@@ -331,7 +327,12 @@ export default function ShiftHistoryScreen({
                   {displayShiftId}
                 </Text>
 
-                {isUnpaid ? (
+                {isPartialPaid ? (
+                  <View style={styles.partialPaidBadge}>
+                    <View style={styles.partialPaidDot} />
+                    <Text style={styles.partialPaidBadgeText}>PARTIAL PAID</Text>
+                  </View>
+                ) : isUnpaid ? (
                   <View style={styles.unpaidBadge}>
                     <View style={styles.unpaidDot} />
                     <Text style={styles.unpaidBadgeText}>UNPAID</Text>
@@ -871,6 +872,28 @@ const styles = StyleSheet.create({
   },
   paidBadgeText: {
     color: '#047857',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  partialPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  partialPaidDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#F97316',
+  },
+  partialPaidBadgeText: {
+    color: '#EA580C',
     fontSize: 10,
     fontWeight: '700',
   },

@@ -49,6 +49,7 @@ export interface ShiftSlipInput {
   staffName?: string;
   staffEmpId?: string;
   displayShiftCode?: string;
+  status?: string;
   isPaid?: boolean;
   paidDate?: string | null;
   shiftDateText?: string;
@@ -412,7 +413,9 @@ export function generateShiftSlipHtml(input: ShiftSlipInput): string {
   const staff = input.staffName || 'Staff Member';
   const staffEmp = input.staffEmpId ? ` (${input.staffEmpId})` : '';
   const shiftCode = input.displayShiftCode || '--';
-  const isPaid = Boolean(input.isPaid);
+  const rawStatus = (input.status || '').toUpperCase().trim();
+  const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+  const isPaid = !isPartialPaid && (Boolean(input.isPaid) || rawStatus === 'PAID');
   const paidDate = input.paidDate;
   const dateText = input.shiftDateText || '--';
   const timeText = input.shiftTimeRangeText || '--';
@@ -422,6 +425,14 @@ export function generateShiftSlipHtml(input: ShiftSlipInput): string {
   const tapAmount = input.tapAmount || '$0.00';
   const tapCount = input.tapCount ?? 0;
   const txns = input.transactions || [];
+
+  const badgeBg = isPartialPaid ? '#FFF7ED' : isPaid ? '#ECFDF5' : '#FFFBEB';
+  const badgeColor = isPartialPaid ? '#EA580C' : isPaid ? '#059669' : '#D97706';
+  const badgeText = isPartialPaid
+    ? '● PARTIAL PAID'
+    : isPaid
+    ? `● PAID${paidDate ? ` on ${paidDate}` : ''}`
+    : '● UNPAID';
 
   return `
 <!DOCTYPE html>
@@ -433,7 +444,7 @@ export function generateShiftSlipHtml(input: ShiftSlipInput): string {
     .header { text-align: center; border-bottom: 2px dashed #E5E7EB; padding-bottom: 16px; margin-bottom: 16px; }
     .title { font-size: 22px; font-weight: bold; margin: 0; color: #0F172A; }
     .sub { color: #64748B; font-size: 13px; margin-top: 4px; }
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-top: 8px; background: ${isPaid ? '#ECFDF5' : '#FFFBEB'}; color: ${isPaid ? '#059669' : '#D97706'}; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-top: 8px; background: ${badgeBg}; color: ${badgeColor}; }
     .card { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px; margin: 16px 0; }
     .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
     .label { color: #64748B; }
@@ -448,7 +459,7 @@ export function generateShiftSlipHtml(input: ShiftSlipInput): string {
   <div class="header">
     <h1 class="title">${biz}</h1>
     <p class="sub">Shift Tally Slip</p>
-    <div class="badge">${isPaid ? `● PAID${paidDate ? ` on ${paidDate}` : ''}` : '● UNPAID'}</div>
+    <div class="badge">${badgeText}</div>
   </div>
 
   <div class="card">

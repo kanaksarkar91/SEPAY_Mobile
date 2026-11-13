@@ -312,6 +312,7 @@ export default function OtherBusinessShiftDetailsScreen({
       staffName: staff,
       staffEmpId: staffEmp,
       displayShiftCode,
+      status: shiftDetails?.shift_info?.status,
       isPaid,
       paidDate,
       shiftDateText: shiftTime.dateText,
@@ -402,7 +403,9 @@ export default function OtherBusinessShiftDetailsScreen({
   const cardParts = formatAmountParts(shiftDetails?.metrics?.card?.amount);
   const tapParts = formatAmountParts(shiftDetails?.metrics?.tap_and_go?.amount);
 
-  const isPaid = Boolean(shiftDetails?.shift_info?.is_paid);
+  const rawStatus = (shiftDetails?.shift_info?.status || '').toUpperCase().trim();
+  const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+  const isPaid = !isPartialPaid && (Boolean(shiftDetails?.shift_info?.is_paid) || rawStatus === 'PAID');
   const isLive = Boolean(shiftDetails?.shift_info?.live ?? (shiftDetails as any)?.live);
 
   return (
@@ -487,7 +490,12 @@ export default function OtherBusinessShiftDetailsScreen({
                   {isLive && <LiveBadge />}
                 </View>
 
-                {isPaid ? (
+                {isPartialPaid ? (
+                  <View style={styles.partialPaidBadge}>
+                    <View style={styles.partialPaidDot} />
+                    <Text style={styles.partialPaidBadgeText}>PARTIAL PAID</Text>
+                  </View>
+                ) : isPaid ? (
                   <View style={styles.paidBadge}>
                     <View style={styles.paidDot} />
                     <Text style={styles.paidBadgeText}>
@@ -933,6 +941,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#059669',
+  },
+  partialPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 999,
+    gap: 4,
+  },
+  partialPaidDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#F97316',
+  },
+  partialPaidBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#EA580C',
   },
   unpaidBadge: {
     flexDirection: 'row',

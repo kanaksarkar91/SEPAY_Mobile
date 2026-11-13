@@ -75,6 +75,11 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
 
   // Generate HTML for full shift slip
   const getShiftSlipHtml = () => {
+    const rawStatus = (shift.status || '').toUpperCase().trim();
+    const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+    const isPaid = !isPartialPaid && (rawStatus === 'PAID' || shift.status === 'paid');
+    const statusColor = isPartialPaid ? '#EA580C' : isPaid ? '#059669' : '#D97706';
+
     return `
       <!DOCTYPE html>
       <html>
@@ -113,7 +118,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
             <div class="row"><span class="label">Taxi Number:</span><span class="value">${shift.taxiNumber}</span></div>
             <div class="row"><span class="label">Date & Time:</span><span class="value">${shift.dateText} (${shift.timeRange})</span></div>
             <div class="row"><span class="label">Duration:</span><span class="value">${shift.duration}</span></div>
-            <div class="row"><span class="label">Status:</span><span class="value" style="color: #059669;">${shift.status.toUpperCase()}${shift.paidDate ? ' (' + shift.paidDate + ')' : ''}</span></div>
+            <div class="row"><span class="label">Status:</span><span class="value" style="color: ${statusColor};">${isPartialPaid ? 'PARTIAL PAID' : `${shift.status.toUpperCase()}${shift.paidDate ? ' (' + shift.paidDate + ')' : ''}`}</span></div>
           </div>
 
           <div class="stat-grid">
@@ -358,19 +363,36 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
           <View style={styles.shiftIdBadgeRow}>
             <Text style={styles.shiftCodeText}>{shift.id}</Text>
 
-            {shift.status === 'paid' ? (
-              <View style={styles.paidBadge}>
-                <View style={styles.paidBadgeDot} />
-                <Text style={styles.paidBadgeText}>
-                  PAID{shift.paidDate ? ` on ${shift.paidDate}` : ''}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.unpaidBadge}>
-                <View style={styles.unpaidBadgeDot} />
-                <Text style={styles.unpaidBadgeText}>UNPAID</Text>
-              </View>
-            )}
+            {(() => {
+              const rawStatus = (shift.status || '').toUpperCase().trim();
+              const isPartialPaid = rawStatus === 'PARTIAL PAID' || rawStatus === 'PARTIAL_PAID' || rawStatus === 'PARTIALLY PAID';
+              const isPaid = !isPartialPaid && (rawStatus === 'PAID' || shift.status === 'paid');
+
+              if (isPartialPaid) {
+                return (
+                  <View style={styles.partialPaidBadge}>
+                    <View style={styles.partialPaidBadgeDot} />
+                    <Text style={styles.partialPaidBadgeText}>PARTIAL PAID</Text>
+                  </View>
+                );
+              }
+              if (isPaid) {
+                return (
+                  <View style={styles.paidBadge}>
+                    <View style={styles.paidBadgeDot} />
+                    <Text style={styles.paidBadgeText}>
+                      PAID{shift.paidDate ? ` on ${shift.paidDate}` : ''}
+                    </Text>
+                  </View>
+                );
+              }
+              return (
+                <View style={styles.unpaidBadge}>
+                  <View style={styles.unpaidBadgeDot} />
+                  <Text style={styles.unpaidBadgeText}>UNPAID</Text>
+                </View>
+              );
+            })()}
           </View>
 
           {/* Date, Time Range & Duration */}
@@ -741,6 +763,26 @@ const styles = StyleSheet.create({
   },
   paidBadgeText: {
     color: '#059669',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  partialPaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  partialPaidBadgeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#F97316',
+  },
+  partialPaidBadgeText: {
+    color: '#EA580C',
     fontSize: 9.5,
     fontWeight: '800',
   },

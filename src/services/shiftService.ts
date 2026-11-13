@@ -137,7 +137,7 @@ export interface ShiftRecordItem {
   end_at: string | null;
   time_range: string;
   is_paid: boolean;
-  status: 'PAID' | 'UNPAID' | string;
+  status: 'PAID' | 'UNPAID' | 'PARTIAL PAID' | string;
   paid_date: string | null;
   total_txns: number;
   amount: number;
@@ -213,7 +213,7 @@ export interface ShiftDetailsInfo {
   end_at?: string | null;
   time_range: string;
   is_paid: boolean;
-  status: 'PAID' | 'UNPAID' | string;
+  status: 'PAID' | 'UNPAID' | 'PARTIAL PAID' | string;
   paid_date?: string | null;
   live?: boolean;
 }
