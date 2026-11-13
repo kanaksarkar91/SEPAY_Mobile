@@ -68,8 +68,9 @@ export default function ReceiptShareModal({
   const pickup = receiptInput.pickup || '';
   const dropoff = receiptInput.dropoff || '';
   const hasRoute = Boolean(pickup || dropoff);
-  const isCash = (receiptInput.paymentMethod || '').toLowerCase().includes('cash');
-  const isTap = (receiptInput.paymentMethod || '').toLowerCase().includes('tap');
+  const methodStr = `${receiptInput.paymentMethod || ''} ${receiptInput.paymentType || ''}`.toLowerCase();
+  const isCash = methodStr.includes('cash');
+  const isTap = !isCash && (methodStr.includes('tap') || methodStr.includes('contactless') || methodStr.includes('nfc'));
   const cardBrand = (receiptInput.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
   const paymentMethodLabel = receiptInput.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
   const payId = receiptInput.paymentId || '--';
@@ -524,8 +525,8 @@ export default function ReceiptShareModal({
                   <Text style={styles.shareMetaLabel}>Date & Time</Text>
                   <Text style={styles.shareMetaValue}>{dt}</Text>
                 </View>
-                <View style={isCash ? styles.chipCash : styles.chipCard}>
-                  <Text style={isCash ? styles.chipCashText : styles.chipCardText}>
+                <View style={isCash ? styles.chipCash : isTap ? styles.chipTap : styles.chipCard}>
+                  <Text style={isCash ? styles.chipCashText : isTap ? styles.chipTapText : styles.chipCardText}>
                     {isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}
                   </Text>
                 </View>
@@ -942,6 +943,22 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '600',
     color: '#059669',
+  },
+  chipTap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    gap: 3,
+  },
+  chipTapText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#D97706',
   },
   chipCard: {
     flexDirection: 'row',

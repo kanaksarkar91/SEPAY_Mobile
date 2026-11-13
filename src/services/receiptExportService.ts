@@ -110,8 +110,9 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   const hasRoute = Boolean(pickup || dropoff);
 
   const { numeric, whole, cents } = formatReceiptAmount(input.amount);
-  const isCash = (input.paymentMethod || '').toLowerCase().includes('cash');
-  const isTap = (input.paymentMethod || '').toLowerCase().includes('tap');
+  const methodStr = `${input.paymentMethod || ''} ${input.paymentType || ''}`.toLowerCase();
+  const isCash = methodStr.includes('cash');
+  const isTap = !isCash && (methodStr.includes('tap') || methodStr.includes('contactless') || methodStr.includes('nfc'));
   const cardBrand = (input.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
   const paymentMethodLabel = input.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
   const payId = input.paymentId || '--';
@@ -189,8 +190,10 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     .meta-label { font-size: 10px; color: #94A3B8; font-weight: 500; }
     .meta-value { font-size: 12px; font-weight: 700; color: #0F172A; margin-top: 1px; }
     .pill-card { background: #EFF6FF; border: 1px solid #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+    .pill-tap { background: #FFFBEB; border: 1px solid #FDE68A; color: #D97706; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
     .pill-cash-tag { background: #ECFDF5; border: 1px solid #A7F3D0; color: #059669; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
     .pill-brand { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1D4ED8; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px; }
+    .pill-brand-tap { background: #FFFBEB; border: 1px solid #FDE68A; color: #B45309; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px; }
     .pill-brand-cash { background: #ECFDF5; border: 1px solid #A7F3D0; color: #059669; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px; }
     .footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid #F1F5F9; text-align: center; }
     .thank-you { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; margin: 0 0 2px; color: #0F172A; }
@@ -246,11 +249,11 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
       <div class="meta-list">
         <div class="meta-row">
           <div><div class="meta-label">Date & Time</div><div class="meta-value">${dt}</div></div>
-          <div class="${isCash ? 'pill-cash-tag' : 'pill-card'}">${isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}</div>
+          <div class="${isCash ? 'pill-cash-tag' : isTap ? 'pill-tap' : 'pill-card'}">${isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}</div>
         </div>
         <div class="meta-row">
           <div><div class="meta-label">Payment Method</div><div class="meta-value">${paymentMethodLabel}</div></div>
-          <div class="${isCash ? 'pill-brand-cash' : 'pill-brand'}">${cardBrand}</div>
+          <div class="${isCash ? 'pill-brand-cash' : isTap ? 'pill-brand-tap' : 'pill-brand'}">${cardBrand}</div>
         </div>
         <div class="meta-row">
           <div><div class="meta-label">${isCash ? 'Receipt ID' : 'Payment ID'}</div><div class="meta-value">${payId}</div></div>
@@ -310,11 +313,11 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     <div class="meta-list">
       <div class="meta-row">
         <div><div class="meta-label">Date & Time</div><div class="meta-value">${dt}</div></div>
-        <div class="${isCash ? 'pill-cash-tag' : 'pill-card'}">${isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}</div>
+        <div class="${isCash ? 'pill-cash-tag' : isTap ? 'pill-tap' : 'pill-card'}">${isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}</div>
       </div>
       <div class="meta-row">
         <div><div class="meta-label">Payment Method</div><div class="meta-value">${paymentMethodLabel}</div></div>
-        <div class="${isCash ? 'pill-brand-cash' : 'pill-brand'}">${cardBrand}</div>
+        <div class="${isCash ? 'pill-brand-cash' : isTap ? 'pill-brand-tap' : 'pill-brand'}">${cardBrand}</div>
       </div>
       <div class="meta-row">
         <div><div class="meta-label">${isCash ? 'Receipt ID' : 'Payment ID'}</div><div class="meta-value">${payId}</div></div>

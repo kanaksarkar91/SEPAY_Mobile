@@ -255,6 +255,15 @@ export default function OtherBusinessShiftDetailsScreen({
       const dropoff = r?.drop_location || txn.drop_location || '';
       const numAmount = r?.amount !== undefined ? Number(r.amount) : Number(txn.amount);
       const dt = formatTxnDateTime(txn);
+      const method = r?.payment_method || txn.payment_method || 'Card';
+      const payType =
+        r?.payment_type ||
+        txn.payment_method ||
+        (method.toLowerCase().includes('cash')
+          ? 'Cash'
+          : method.toLowerCase().includes('tap')
+          ? 'Tap & Go'
+          : 'Card');
 
       return {
         businessName: biz,
@@ -264,7 +273,8 @@ export default function OtherBusinessShiftDetailsScreen({
         amount: numAmount,
         amountFormatted: r?.amount_formatted || txn.amount_formatted,
         dateTime: dt,
-        paymentMethod: r?.payment_method || txn.payment_method,
+        paymentMethod: method,
+        paymentType: payType,
         cardBrand: r?.card_brand,
         paymentId: r?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '--'),
         isTaxi,
@@ -373,8 +383,9 @@ export default function OtherBusinessShiftDetailsScreen({
     if (txn.receipt && payId) {
       receiptService.setCachedReceipt(payId, txn.receipt);
     }
-    const isCash = (txn.payment_method || '').toLowerCase().includes('cash');
-    const isTap = (txn.payment_method || '').toLowerCase().includes('tap');
+    const methodStr = `${txn.receipt?.payment_type || ''} ${txn.receipt?.payment_method || ''} ${txn.payment_method || ''}`.toLowerCase();
+    const isCash = methodStr.includes('cash');
+    const isTap = !isCash && (methodStr.includes('tap') || methodStr.includes('contactless') || methodStr.includes('nfc'));
     router.push({
       pathname: '/(tabs)/receipt-details',
       params: {
@@ -670,8 +681,10 @@ export default function OtherBusinessShiftDetailsScreen({
 
                 {/* Transaction Cards */}
                 {group.transactions.map((txn: ShiftDetailsTransactionItem) => {
-                  const isCard = (txn.payment_method || '').toLowerCase().includes('card');
-                  const isCash = (txn.payment_method || '').toLowerCase().includes('cash');
+                  const methodStr = `${txn.receipt?.payment_type || ''} ${txn.receipt?.payment_method || ''} ${txn.payment_method || ''}`.toLowerCase();
+                  const isCash = methodStr.includes('cash');
+                  const isTap = !isCash && (methodStr.includes('tap') || methodStr.includes('contactless') || methodStr.includes('nfc'));
+                  const isCard = !isCash && !isTap;
                   const formattedTime = formatTxnTime(txn);
                   const pickupLoc = txn.pickup_location || txn.receipt?.pickup_location;
                   const dropLoc = txn.drop_location || txn.receipt?.drop_location;

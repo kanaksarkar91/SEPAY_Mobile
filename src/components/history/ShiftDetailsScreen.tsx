@@ -16,6 +16,8 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import HeaderBar from '../common/HeaderBar';
+import ReceiptShareModal from '../common/ReceiptShareModal';
+import { UnifiedReceiptInput } from '../../services/receiptExportService';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { ShiftRecord, ShiftTransaction } from '../../types/shift';
 
@@ -32,13 +34,43 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<TxnFilterType>('all');
   const [_isExporting, _setIsExporting] = useState(false);
+  const [selectedTxnForShare, setSelectedTxnForShare] = useState<ShiftTransaction | null>(null);
+  const [isShareModalVisible, setIsShareModalVisible] = useState(false);
+
+  const selectedShareReceiptInput = useMemo((): UnifiedReceiptInput | null => {
+    if (!selectedTxnForShare) return null;
+    const methodStr = `${selectedTxnForShare.method || ''} ${(selectedTxnForShare as any).payment_method || ''} ${(selectedTxnForShare as any).payment_type || ''}`.toLowerCase();
+    const isTap = methodStr.includes('tap') || methodStr.includes('nfc') || selectedTxnForShare.method === 'tap_and_go';
+
+    return {
+      businessName: shift.businessName,
+      abn: '19113303849',
+      phone: '9113303849',
+      amount: selectedTxnForShare.amount,
+      amountFormatted: `$${selectedTxnForShare.amount.toFixed(2)}`,
+      dateTime: `${selectedTxnForShare.date} ${selectedTxnForShare.time}`,
+      paymentMethod: (selectedTxnForShare as any).payment_method || (isTap ? 'Tap & Go' : 'Card'),
+      paymentType: (selectedTxnForShare as any).payment_type || (isTap ? 'Tap & Go' : 'Card'),
+      cardBrand: isTap ? 'TAP & GO' : 'VISA',
+      paymentId: selectedTxnForShare.id,
+      isTaxi: true,
+      taxiNumber: shift.taxiNumber,
+      dcNumber: '112233',
+      pickup: selectedTxnForShare.pickup,
+      dropoff: selectedTxnForShare.dropoff,
+      staffName: shift.driverName,
+    };
+  }, [selectedTxnForShare, shift]);
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
     return shift.transactions.filter((txn) => {
       // Filter by method
-      if (filterType === 'card' && txn.method !== 'card') return false;
-      if (filterType === 'tap_and_go' && txn.method !== 'tap_and_go') return false;
+      const methodStr = `${txn.method || ''} ${(txn as any).payment_method || ''} ${(txn as any).payment_type || ''}`.toLowerCase();
+      const isTap = methodStr.includes('tap') || methodStr.includes('nfc') || txn.method === 'tap_and_go';
+      const isCard = !isTap;
+      if (filterType === 'card' && !isCard) return false;
+      if (filterType === 'tap_and_go' && !isTap) return false;
 
       // Filter by search
       if (searchQuery.trim().length > 0) {
@@ -150,15 +182,19 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
             <tbody>
               ${shift.transactions
         .map(
-          (t) => `
+          (t) => {
+            const tMethodStr = `${t.method || ''} ${(t as any).payment_method || ''} ${(t as any).payment_type || ''}`.toLowerCase();
+            const tIsTap = tMethodStr.includes('tap') || tMethodStr.includes('nfc') || t.method === 'tap_and_go';
+            return `
                 <tr>
                   <td><b>${t.id}</b></td>
                   <td>${t.time}</td>
-                  <td>${t.method === 'card' ? 'Card' : 'Tap & Go'}</td>
+                  <td>${tIsTap ? 'Tap & Go' : 'Card'}</td>
                   <td>${t.pickup} &rarr; ${t.dropoff}</td>
                   <td style="text-align: right; font-weight: bold;">$${t.amount.toFixed(2)}</td>
                 </tr>
-              `
+              `;
+          }
         )
         .join('')}
             </tbody>
@@ -269,60 +305,9 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   };
 
   // Single trip share
-  const handleShareTrip = async (txn: ShiftTransaction) => {
-    try {
-      const html = `
-        <html>
-          <body style="font-family: sans-serif; padding: 20px; text-align: center;">
-            <h2>${shift.businessName}</h2>
-            <p>Taxi: ${shift.taxiNumber} | Driver: ${shift.driverName}</p>
-            <hr/>
-            <p><b>${txn.id}</b> - ${txn.time}</p>
-            <p>${txn.pickup} &rarr; ${txn.dropoff}</p>
-            <p style="font-size: 24px; font-weight: bold;">$${txn.amount.toFixed(2)}</p>
-            <p>${txn.verification}</p>
-            <hr/>
-            <p>SE PAY DIGITAL RECEIPT</p>
-          </body>
-        </html>
-      `;
-
-      const { uri, base64 } = await Print.printToFileAsync({ html, base64: true });
-      const fileName = `receipt_${txn.id.replace('#', '')}_${Date.now()}.pdf`;
-      const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
-
-      if (base64) {
-        await FileSystem.writeAsStringAsync(targetUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } else {
-        await FileSystem.copyAsync({ from: uri, to: targetUri });
-      }
-
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(targetUri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Share Receipt ${txn.id}`,
-          UTI: '.pdf',
-        });
-      } else {
-        await Share.share({
-          title: `Receipt ${txn.id}`,
-          message: `Taxi Trip Receipt (${shift.businessName})\nTXN: ${txn.id}\nFare: $${txn.amount.toFixed(2)}\nRoute: ${txn.pickup} to ${txn.dropoff}`,
-        });
-      }
-    } catch (error) {
-      console.error('Share trip error:', error);
-      try {
-        await Share.share({
-          title: `Receipt ${txn.id}`,
-          message: `Taxi Trip Receipt (${shift.businessName})\nTXN: ${txn.id}\nFare: $${txn.amount.toFixed(2)}\nRoute: ${txn.pickup} to ${txn.dropoff}`,
-        });
-      } catch {
-        // ignore
-      }
-    }
+  const handleShareTrip = (txn: ShiftTransaction) => {
+    setSelectedTxnForShare(txn);
+    setIsShareModalVisible(true);
   };
 
   return (
@@ -545,7 +530,9 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
 
             {/* List of Trip Cards in this Date */}
             {group.transactions.map((txn) => {
-              const isCard = txn.method === 'card';
+              const methodStr = `${txn.method || ''} ${(txn as any).payment_method || ''} ${(txn as any).payment_type || ''}`.toLowerCase();
+              const isTap = methodStr.includes('tap') || methodStr.includes('nfc') || txn.method === 'tap_and_go';
+              const isCard = !isTap;
 
               return (
                 <View key={txn.id} style={styles.tripCard}>
@@ -667,6 +654,13 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
 
         <View style={{ height: Math.max(insets.bottom, 24) }} />
       </ScrollView>
+
+      {/* Share Receipt Modal */}
+      <ReceiptShareModal
+        visible={isShareModalVisible}
+        onClose={() => setIsShareModalVisible(false)}
+        receiptInput={selectedShareReceiptInput}
+      />
     </View>
   );
 }
