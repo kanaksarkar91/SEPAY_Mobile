@@ -69,6 +69,8 @@ apiClient.interceptors.request.use(
       if (deviceId) {
         reqConfig.headers['X-Device-Id'] = deviceId;
       }
+      reqConfig.headers['X-Device-Model'] = deviceService.getDeviceModel();
+      reqConfig.headers['X-OS-Version'] = deviceService.getOsVersion();
       reqConfig.headers['X-Platform'] = deviceService.getPlatform();
     }
 

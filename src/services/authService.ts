@@ -10,9 +10,15 @@ import { LoginType, UserProfile } from '../context/AuthContext';
 export interface LoginPayload {
   username: string;
   password: string;
+  deviceModel?: string;
+  osVersion?: string;
   deviceInfo?: {
     platform?: string;
     deviceId?: string;
+    deviceModel?: string;
+    device_model?: string;
+    osVersion?: string;
+    os_version?: string;
     appVersion?: string;
   };
 }

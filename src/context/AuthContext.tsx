@@ -156,13 +156,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetUnauthorizedHandling();
       const deviceId = await deviceService.getDeviceId();
       const platform = deviceService.getPlatform();
+      const deviceModel = deviceService.getDeviceModel();
+      const osVersion = deviceService.getOsVersion();
 
       const liveUser = await authService.login({
         username: trimmedUser,
         password: trimmedPass,
+        deviceModel,
+        osVersion,
         deviceInfo: {
           platform,
           deviceId,
+          deviceModel,
+          device_model: deviceModel,
+          osVersion,
+          os_version: osVersion,
           appVersion: APP_CONFIG.version,
         },
       });
