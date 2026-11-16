@@ -15,6 +15,7 @@ import {
   type CreatePaymentIntentResponse,
 } from '../services/stripeApi';
 import { useAuth } from './AuthContext';
+import { onShiftChange } from '../services/shiftService';
 import type { PaymentMethodType, FeeBreakdown } from '../utils/feeCalculator';
 
 interface TerminalContextValue {
@@ -807,6 +808,26 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
   supportsReadersOfType,
 ]);
 
+  // Proactively refresh Terminal reader session on shift start / disconnect on shift end
+  // Prevents stale reader hardware dormancy when drivers keep app open overnight across shifts
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const unsub = onShiftChange((shift) => {
+      if (shift) {
+        appLogger.info('TERMINAL', 'Shift started, proactively warming up terminal reader session...');
+        clearStripeCache();
+        initAndConnectSimulatedReader(false).catch(() => {});
+      } else {
+        appLogger.info('TERMINAL', 'Shift ended, disconnecting reader...');
+        clearStripeCache();
+        if (typeof disconnectReader === 'function') {
+          disconnectReader().catch(() => {});
+        }
+      }
+    });
+    return () => unsub();
+  }, [isAuthenticated, initAndConnectSimulatedReader, disconnectReader]);
+
   const runSimulatedPayment = useCallback(
     async (
       amount: number,
@@ -988,10 +1009,23 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 : 'Ready for tap. Hold card against the back of your phone...'
             );
             isCollectingRef.current = true;
-            const retryRes = await collectPaymentMethod({ paymentIntent });
-            isCollectingRef.current = false;
-            collectedIntent = retryRes.paymentIntent;
-            collectError = retryRes.error;
+            // In Stripe Terminal Android SDK, disconnecting/reconnecting the reader purges
+            // the in-memory PaymentIntent (sdkUuid). Re-retrieve it with clientSecret before retrying.
+            try {
+              const { paymentIntent: freshIntent, error: reRetrieveError } =
+                await retrievePaymentIntent(clientSecret);
+              if (freshIntent && !reRetrieveError) {
+                const retryRes = await collectPaymentMethod({ paymentIntent: freshIntent });
+                collectedIntent = retryRes.paymentIntent;
+                collectError = retryRes.error;
+              } else {
+                collectError = reRetrieveError || collectError;
+              }
+            } catch (reErr: any) {
+              appLogger.error('TERMINAL', 'Failed to re-retrieve PaymentIntent after reader reconnect:', reErr);
+            } finally {
+              isCollectingRef.current = false;
+            }
           }
         }
 

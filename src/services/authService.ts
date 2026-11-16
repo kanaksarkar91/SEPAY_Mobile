@@ -1,6 +1,9 @@
 import { apiClient } from './apiClient';
 import { tokenStorage } from './tokenStorage';
 import { clearStripeCache } from './stripeApi';
+import { clearDashboardCache } from './dashboardService';
+import { receiptService } from './receiptService';
+import { shiftService } from './shiftService';
 import { LoginType, UserProfile } from '../context/AuthContext';
 
 export interface LoginPayload {
@@ -270,6 +273,10 @@ export const authService = {
     } finally {
       await tokenStorage.clearSession();
       clearStripeCache();
+      clearDashboardCache();
+      receiptService.clearCache();
+      shiftService.setActiveShift(null);
+      shiftService.setUserId(null);
     }
   },
 };

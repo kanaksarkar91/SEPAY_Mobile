@@ -57,14 +57,7 @@ function TaxiReceiptScreen() {
 
   const rawAmount = params.amount || '0.00';
   const numericAmount = parseFloat(rawAmount) || 0;
-  const method = (params.method || 'tap').toLowerCase();
-  const isCash = method === 'cash';
-  const isTap = method === 'tap';
-
-  const cardBrand = isCash
-    ? 'Cash'
-    : (params.cardBrand || (isTap ? 'Contactless' : 'Visa')).trim();
-  const cardLast4 = isCash ? '' : (params.cardLast4 || '••••');
+  const paramMethod = (params.method || '').toLowerCase();
 
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(() => {
     if (params.receiptJson) {
@@ -188,6 +181,21 @@ function TaxiReceiptScreen() {
     cachedHeader?.phone ||
     cachedUser?.phone ||
     '--';
+
+  const rawTypeStr = `${receiptData?.payment_type || ''} ${receiptData?.payment_method || ''} ${paramMethod}`.toLowerCase();
+  const isCash = rawTypeStr.includes('cash') || paramMethod === 'cash';
+  const isTap =
+    !isCash &&
+    (rawTypeStr.includes('tap') ||
+      rawTypeStr.includes('contactless') ||
+      rawTypeStr.includes('nfc') ||
+      paramMethod === 'tap' ||
+      (!paramMethod && !isCash));
+
+  const cardBrand = isCash
+    ? 'Cash'
+    : (params.cardBrand || (isTap ? 'Contactless' : 'Visa')).trim();
+  const cardLast4 = isCash ? '' : (params.cardLast4 || '••••');
 
   const cardBrandFinal =
     receiptData?.card_brand || cardBrand;
@@ -485,14 +493,24 @@ function TaxiReceiptScreen() {
                   <Text style={styles.metaLabel}>Date & Time</Text>
                   <Text style={styles.metaValue}>{formattedDate}</Text>
                 </View>
-                <View style={[styles.methodCapsule, isCash && styles.cashMethodCapsule]}>
+                <View
+                  style={[
+                    styles.methodCapsule,
+                    isCash ? styles.cashMethodCapsule : isTap ? styles.tapMethodCapsule : null,
+                  ]}
+                >
                   <Ionicons
                     name={isCash ? 'cash-outline' : isTap ? 'flash' : 'card'}
                     size={12}
-                    color={isCash ? '#059669' : '#2563EB'}
+                    color={isCash ? '#059669' : isTap ? '#D97706' : '#2563EB'}
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={[styles.methodCapsuleText, isCash && styles.cashMethodCapsuleText]}>
+                  <Text
+                    style={[
+                      styles.methodCapsuleText,
+                      isCash ? styles.cashMethodCapsuleText : isTap ? styles.tapMethodCapsuleText : null,
+                    ]}
+                  >
                     {paymentMethodBadgeLabel}
                   </Text>
                 </View>
@@ -896,6 +914,13 @@ const styles = StyleSheet.create({
   },
   cashMethodCapsuleText: {
     color: '#059669',
+  },
+  tapMethodCapsule: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF08A',
+  },
+  tapMethodCapsuleText: {
+    color: '#D97706',
   },
   cashPill: {
     backgroundColor: '#ECFDF5',

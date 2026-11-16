@@ -116,4 +116,11 @@ export const receiptService = {
     if (!paymentId) return null;
     return receiptCache.get(paymentId.trim()) || null;
   },
+
+  /**
+   * Clear all cached receipts on logout
+   */
+  clearCache: () => {
+    receiptCache.clear();
+  },
 };

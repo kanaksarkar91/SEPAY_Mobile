@@ -230,6 +230,11 @@ export function getCachedDashboardData(): DashboardData | null {
   return cachedDashboardData;
 }
 
+export function clearDashboardCache(): void {
+  cachedDashboardHeader = null;
+  cachedDashboardData = null;
+}
+
 /**
  * Returns current active shift session ID for payments, or null if off-shift.
  */
