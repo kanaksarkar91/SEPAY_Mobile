@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -49,6 +51,7 @@ export default function TaxiOwnerHistoryScreen({
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filterType, setFilterType] = useState<ShiftFilterType>('all');
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
@@ -207,21 +210,40 @@ export default function TaxiOwnerHistoryScreen({
     fetchShiftHistoryRef.current = fetchShiftHistory;
   });
 
-  // Handle Debounced Search
+  // Handle Debounced Search (increased debounce to 800ms)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
     const timer = setTimeout(() => {
-      if (searchQuery.trim() !== activeSearchRef.current) {
-        activeSearchRef.current = searchQuery.trim();
-        fetchShiftHistoryRef.current({ page: 1, search: searchQuery.trim() });
+      const trimmed = searchInputValue.trim();
+      if (trimmed !== activeSearchRef.current) {
+        activeSearchRef.current = trimmed;
+        setSearchQuery(trimmed);
+        fetchShiftHistoryRef.current({ page: 1, search: trimmed });
       }
-    }, 450);
+    }, 800);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchInputValue]);
+
+  const handleSearchSubmit = useCallback(() => {
+    Keyboard.dismiss();
+    const trimmed = searchInputValue.trim();
+    if (trimmed !== activeSearchRef.current) {
+      activeSearchRef.current = trimmed;
+      setSearchQuery(trimmed);
+      fetchShiftHistoryRef.current({ page: 1, search: trimmed });
+    }
+  }, [searchInputValue]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchInputValue('');
+    activeSearchRef.current = '';
+    setSearchQuery('');
+    fetchShiftHistoryRef.current({ page: 1, search: '' });
+  }, []);
 
   // Pull-to-refresh
   const handleRefresh = useCallback(() => {
@@ -409,42 +431,6 @@ export default function TaxiOwnerHistoryScreen({
   // List Header Component
   const renderListHeader = () => (
     <View>
-      {/* ── SEARCH & DATE RANGE FILTER ROW ── */}
-      <View style={styles.searchDateRow}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={17} color="#94A3B8" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search Shift ID..."
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.clearButton}
-            >
-              <Ionicons name="close-circle" size={16} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={styles.dateFilterButton}
-          activeOpacity={0.8}
-          onPress={() => setIsDateModalVisible(true)}
-        >
-          <Ionicons name="calendar-outline" size={16} color="#0F172A" />
-          <Text style={styles.dateFilterText} numberOfLines={1}>
-            {dateRangeText}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* ── FILTER PILLS ── */}
       <View style={styles.filterPillsRow}>
         <TouchableOpacity
@@ -568,76 +554,119 @@ export default function TaxiOwnerHistoryScreen({
   );
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
 
-      {/* Header Bar with Taxi Number Subtitle */}
-      <HeaderBar
-        title="Shift History"
-        subtitle={
-          <Text style={styles.headerSubtitleText}>
-            Taxi No.: <Text style={styles.headerTaxiOrange}>{displayTaxiNo}</Text>
-          </Text>
-        }
-      />
-
-      {isLoading && shiftRecords.length === 0 ? (
-        <View style={styles.centerLoading}>
-          <ActivityIndicator size="large" color="#F59E0B" />
-          <Text style={styles.loadingText}>Loading shift history...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={shiftRecords}
-          keyExtractor={(item, index) => `${item.id || item.shift_id || index}-${index}`}
-          renderItem={renderShiftItem}
-          ListHeaderComponent={renderListHeader}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="file-tray-outline" size={44} color="#94A3B8" />
-              <Text style={styles.emptyTitle}>No Shift Records Found</Text>
-              <Text style={styles.emptySubtitle}>
-                {searchQuery || startDate || endDate
-                  ? 'No shifts match your search or date filters.'
-                  : 'No shift history recorded yet.'}
-              </Text>
-            </View>
+        {/* Header Bar with Taxi Number Subtitle */}
+        <HeaderBar
+          title="Shift History"
+          subtitle={
+            <Text style={styles.headerSubtitleText}>
+              Taxi No.: <Text style={styles.headerTaxiOrange}>{displayTaxiNo}</Text>
+            </Text>
           }
-          ListFooterComponent={
-            isLoadingMore ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color="#F59E0B" />
-                <Text style={styles.footerLoaderText}>Loading more shifts...</Text>
-              </View>
-            ) : (
-              <View style={{ height: 28 }} />
-            )
-          }
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.4}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={['#F59E0B']}
-              tintColor="#F59E0B"
-            />
-          }
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         />
-      )}
 
-      {/* Date Range Picker Modal */}
-      <DateRangePickerModal
-        visible={isDateModalVisible}
-        onClose={() => setIsDateModalVisible(false)}
-        onApply={handleApplyDateRange}
-        initialStartDate={startDate}
-        initialEndDate={endDate}
-      />
-    </View>
+        {/* ── SEARCH & DATE RANGE FILTER ROW (Fixed outside FlatList so TextInput never unmounts or loses focus) ── */}
+        <View style={styles.fixedSearchWrapper}>
+          <View style={styles.searchDateRow}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={17} color="#94A3B8" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search Shift ID..."
+                placeholderTextColor="#94A3B8"
+                value={searchInputValue}
+                onChangeText={setSearchInputValue}
+                onSubmitEditing={handleSearchSubmit}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchInputValue.length > 0 && (
+                <TouchableOpacity
+                  onPress={handleClearSearch}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.clearButton}
+                >
+                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.dateFilterButton}
+              activeOpacity={0.8}
+              onPress={() => setIsDateModalVisible(true)}
+            >
+              <Ionicons name="calendar-outline" size={16} color="#0F172A" />
+              <Text style={styles.dateFilterText} numberOfLines={1}>
+                {dateRangeText}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {isLoading && shiftRecords.length === 0 ? (
+          <View style={styles.centerLoading}>
+            <ActivityIndicator size="large" color="#F59E0B" />
+            <Text style={styles.loadingText}>Loading shift history...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={shiftRecords}
+            keyExtractor={(item, index) => `${item.id || item.shift_id || index}-${index}`}
+            renderItem={renderShiftItem}
+            ListHeaderComponent={renderListHeader()}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons name="file-tray-outline" size={44} color="#94A3B8" />
+                <Text style={styles.emptyTitle}>No Shift Records Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  {searchInputValue || startDate || endDate
+                    ? 'No shifts match your search or date filters.'
+                    : 'No shift history recorded yet.'}
+                </Text>
+              </View>
+            }
+            ListFooterComponent={
+              isLoadingMore ? (
+                <View style={styles.footerLoader}>
+                  <ActivityIndicator size="small" color="#F59E0B" />
+                  <Text style={styles.footerLoaderText}>Loading more shifts...</Text>
+                </View>
+              ) : (
+                <View style={{ height: 28 }} />
+              )
+            }
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.4}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={['#F59E0B']}
+                tintColor="#F59E0B"
+              />
+            }
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          />
+        )}
+
+        {/* Date Range Picker Modal */}
+        <DateRangePickerModal
+          visible={isDateModalVisible}
+          onClose={() => setIsDateModalVisible(false)}
+          onApply={handleApplyDateRange}
+          initialStartDate={startDate}
+          initialEndDate={endDate}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -660,10 +689,16 @@ const styles = StyleSheet.create({
     color: '#D97706',
     fontWeight: '700',
   },
+  fixedSearchWrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+    backgroundColor: '#FFFFFF',
+  },
   searchDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   searchContainer: {
     flex: 1,

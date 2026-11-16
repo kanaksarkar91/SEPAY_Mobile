@@ -13,6 +13,8 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -105,6 +107,7 @@ export default function OtherBusinessTransactionsScreen({
   const [selectedEmployee, setSelectedEmployee] = useState<ShiftSelectorEmployee | null>(null);
   const [isEmployeeModalVisible, setIsEmployeeModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filterType, setFilterType] = useState<ShiftFilterType>('all');
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
@@ -311,21 +314,23 @@ export default function OtherBusinessTransactionsScreen({
     };
   }, [initialEmpId]);
 
-  // Debounced search input to query API smoothly without lagging keystrokes
+  // Debounced search input to query API smoothly without lagging keystrokes (increased to 800ms)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    if (searchQuery === activeSearchRef.current) return;
-
     const timer = setTimeout(() => {
-      activeSearchRef.current = searchQuery;
-      fetchShiftHistoryRef.current({ page: 1, search: searchQuery });
-    }, 450);
+      const trimmed = searchInputValue.trim();
+      if (trimmed !== activeSearchRef.current) {
+        activeSearchRef.current = trimmed;
+        setSearchQuery(trimmed);
+        fetchShiftHistoryRef.current({ page: 1, search: trimmed });
+      }
+    }, 800);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchInputValue]);
 
   // Handle pull to refresh
   const handleRefresh = useCallback(() => {
@@ -382,11 +387,17 @@ export default function OtherBusinessTransactionsScreen({
 
   // Handle Search Input Change / Submit
   const handleSearchSubmit = () => {
-    activeSearchRef.current = searchQuery;
-    fetchShiftHistory({ page: 1, search: searchQuery });
+    Keyboard.dismiss();
+    const trimmed = searchInputValue.trim();
+    if (trimmed !== activeSearchRef.current) {
+      activeSearchRef.current = trimmed;
+      setSearchQuery(trimmed);
+      fetchShiftHistory({ page: 1, search: trimmed });
+    }
   };
 
   const handleClearSearch = () => {
+    setSearchInputValue('');
     setSearchQuery('');
     activeSearchRef.current = '';
     fetchShiftHistory({ page: 1, search: '' });
@@ -538,20 +549,22 @@ export default function OtherBusinessTransactionsScreen({
   const employeeList = selector?.employee_list || [];
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
 
-      {/* Screen Title: Centered "Shift History" */}
-      <HeaderBar title={shiftHistoryData?.header?.title || 'Shift History'} showBack={false} />
+        {/* Screen Title: Centered "Shift History" */}
+        <HeaderBar title={shiftHistoryData?.header?.title || 'Shift History'} showBack={false} />
 
-      <FlatList
-        data={shiftRecords}
-        keyExtractor={(item, index) => `${item.id || item.shift_id || index}`}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        onEndReached={handleLoadMore}
+        <FlatList
+          data={shiftRecords}
+          keyExtractor={(item, index) => `${item.id || item.shift_id || index}`}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
@@ -630,14 +643,14 @@ export default function OtherBusinessTransactionsScreen({
                   style={styles.searchInput}
                   placeholder="Search Shift ID..."
                   placeholderTextColor="#94A3B8"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  value={searchInputValue}
+                  onChangeText={setSearchInputValue}
                   onSubmitEditing={handleSearchSubmit}
                   returnKeyType="search"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {searchQuery.length > 0 && (
+                {searchInputValue.length > 0 && (
                   <TouchableOpacity
                     onPress={handleClearSearch}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1244,6 +1257,7 @@ export default function OtherBusinessTransactionsScreen({
         )}
       </Modal>
     </View>
+  </TouchableWithoutFeedback>
   );
 }
 

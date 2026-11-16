@@ -9,6 +9,8 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -71,7 +73,26 @@ export default function OtherBusinessShiftDetailsScreen({
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filterType, setFilterType] = useState<TxnFilterType>('all');
+
+  // Debounced search query update (800ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInputValue.trim());
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [searchInputValue]);
+
+  const handleSearchSubmit = () => {
+    Keyboard.dismiss();
+    setSearchQuery(searchInputValue.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearchInputValue('');
+    setSearchQuery('');
+  };
 
   // Fetch shift details from live API (GET /api/shift/history/details/:id)
   const fetchShiftDetails = useCallback(
@@ -427,21 +448,23 @@ export default function OtherBusinessShiftDetailsScreen({
   const isLive = Boolean(shiftDetails?.shift_info?.live ?? (shiftDetails as any)?.live);
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
 
-      {/* Header Bar with Back Button and Shift ID */}
-      <HeaderBar
-        title={headerTitle}
-        showBack={true}
-        onBack={onBack}
-      />
+        {/* Header Bar with Back Button and Shift ID */}
+        <HeaderBar
+          title={headerTitle}
+          showBack={true}
+          onBack={onBack}
+        />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -596,14 +619,16 @@ export default function OtherBusinessShiftDetailsScreen({
                 style={styles.searchInput}
                 placeholder="Search TXN ID, amount..."
                 placeholderTextColor="#94A3B8"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+                value={searchInputValue}
+                onChangeText={setSearchInputValue}
+                onSubmitEditing={handleSearchSubmit}
+                returnKeyType="search"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {searchQuery.length > 0 && (
+              {searchInputValue.length > 0 && (
                 <TouchableOpacity
-                  onPress={() => setSearchQuery('')}
+                  onPress={handleClearSearch}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   style={styles.clearButton}
                 >
@@ -908,6 +933,7 @@ export default function OtherBusinessShiftDetailsScreen({
         receiptInput={selectedShareReceiptInput}
       />
     </View>
+  </TouchableWithoutFeedback>
   );
 }
 

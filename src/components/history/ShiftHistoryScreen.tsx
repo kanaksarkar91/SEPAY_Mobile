@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Image,
   Modal,
   Pressable,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -75,10 +77,29 @@ export default function ShiftHistoryScreen({
   isDriver = false,
 }: ShiftHistoryScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filterType, setFilterType] = useState<ShiftFilterType>('all');
   const [dateRangeText, setDateRangeText] = useState('20–26 Oct 2026');
   const [selectedDriver, setSelectedDriver] = useState<TaxiDriver>(DRIVERS_LIST[0]);
   const [isDriverModalVisible, setIsDriverModalVisible] = useState(false);
+
+  // Debounce search query updates (800ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInputValue.trim());
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [searchInputValue]);
+
+  const handleSearchSubmit = () => {
+    Keyboard.dismiss();
+    setSearchQuery(searchInputValue.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearchInputValue('');
+    setSearchQuery('');
+  };
 
   // Filter shifts based on pill tab & search input
   const filteredShifts = useMemo(() => {
@@ -101,78 +122,82 @@ export default function ShiftHistoryScreen({
   }, [filterType, searchQuery]);
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
 
-      {/* Common Header Bar */}
-      <HeaderBar
-        title="Shift History"
-        subtitle={
-          <Text style={styles.headerSubtitleText}>
-            Taxi No.: <Text style={styles.headerTaxiOrange}>{taxiNumber}</Text>
-          </Text>
-        }
-      />
+        {/* Common Header Bar */}
+        <HeaderBar
+          title="Shift History"
+          subtitle={
+            <Text style={styles.headerSubtitleText}>
+              Taxi No.: <Text style={styles.headerTaxiOrange}>{taxiNumber}</Text>
+            </Text>
+          }
+        />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ── SELECT DRIVER SECTION (Only for taxi fleet owner) ── */}
-        {!isDriver && (
-          <>
-            <View style={styles.driverSectionHeader}>
-              <Text style={styles.driverSectionLabel}>SELECT DRIVER</Text>
-              <View style={styles.totalDriversBadge}>
-                <Text style={styles.totalDriversBadgeText}>{DRIVERS_LIST.length} Total</Text>
-              </View>
-            </View>
-
-            {/* Driver Selector Card */}
-            <TouchableOpacity
-              style={styles.driverCard}
-              activeOpacity={0.8}
-              onPress={() => setIsDriverModalVisible(true)}
-            >
-              <View style={styles.driverCardLeft}>
-                <Image source={selectedDriver.avatar} style={styles.driverAvatar} />
-                <Text style={styles.driverName}>{selectedDriver.name}</Text>
-                <View style={styles.taxiNoBadge}>
-                  <Text style={styles.taxiNoBadgeText}>{selectedDriver.taxiNumber}</Text>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {/* ── SELECT DRIVER SECTION (Only for taxi fleet owner) ── */}
+          {!isDriver && (
+            <>
+              <View style={styles.driverSectionHeader}>
+                <Text style={styles.driverSectionLabel}>SELECT DRIVER</Text>
+                <View style={styles.totalDriversBadge}>
+                  <Text style={styles.totalDriversBadgeText}>{DRIVERS_LIST.length} Total</Text>
                 </View>
               </View>
-              <View style={styles.chevronCircle}>
-                <Ionicons name="chevron-down" size={16} color="#64748B" />
-              </View>
-            </TouchableOpacity>
-          </>
-        )}
 
-        {/* ── SEARCH & DATE RANGE FILTER ROW ── */}
-        <View style={styles.searchDateRow}>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={17} color="#94A3B8" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search Shift ID..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searchQuery.length > 0 && (
+              {/* Driver Selector Card */}
               <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.clearButton}
+                style={styles.driverCard}
+                activeOpacity={0.8}
+                onPress={() => setIsDriverModalVisible(true)}
               >
-                <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                <View style={styles.driverCardLeft}>
+                  <Image source={selectedDriver.avatar} style={styles.driverAvatar} />
+                  <Text style={styles.driverName}>{selectedDriver.name}</Text>
+                  <View style={styles.taxiNoBadge}>
+                    <Text style={styles.taxiNoBadgeText}>{selectedDriver.taxiNumber}</Text>
+                  </View>
+                </View>
+                <View style={styles.chevronCircle}>
+                  <Ionicons name="chevron-down" size={16} color="#64748B" />
+                </View>
               </TouchableOpacity>
-            )}
-          </View>
+            </>
+          )}
+
+          {/* ── SEARCH & DATE RANGE FILTER ROW ── */}
+          <View style={styles.searchDateRow}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={17} color="#94A3B8" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search Shift ID..."
+                placeholderTextColor="#94A3B8"
+                value={searchInputValue}
+                onChangeText={setSearchInputValue}
+                onSubmitEditing={handleSearchSubmit}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchInputValue.length > 0 && (
+                <TouchableOpacity
+                  onPress={handleClearSearch}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.clearButton}
+                >
+                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
 
           <TouchableOpacity
             style={styles.dateFilterButton}
@@ -485,6 +510,7 @@ export default function ShiftHistoryScreen({
         </Pressable>
       </Modal>
     </View>
+  </TouchableWithoutFeedback>
   );
 }
 
