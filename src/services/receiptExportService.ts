@@ -21,6 +21,8 @@ export interface UnifiedReceiptInput {
   paymentType?: string | null;
   cardBrand?: string;
   paymentId?: string;
+  paymentStatus?: string | null;
+  reason?: string | null;
   // Taxi specific
   isTaxi?: boolean;
   taxiNumber?: string | null;
@@ -132,6 +134,24 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   const hasAd = Boolean(input.hasAdBanner && input.bannerImageUrl);
   const bannerUrl = normalizeImageUrl(input.bannerImageUrl);
 
+  const rawStatus = (input.paymentStatus || '').toLowerCase();
+  const isFailed = rawStatus === 'failed' || rawStatus === 'declined' || rawStatus === 'cancelled';
+  const isPending = rawStatus === 'pending' || rawStatus === 'processing';
+  const statusLabel = isFailed
+    ? 'TOTAL AMOUNT (FAILED)'
+    : isPending
+      ? 'TOTAL AMOUNT (PENDING)'
+      : 'TOTAL PAID (INC GST)';
+  const statusBadgeHtml = isFailed
+    ? `<span class="paid-badge" style="background:#FEE2E2; border-color:#FECACA; color:#DC2626;"><span class="paid-dot" style="background:#DC2626;"></span>FAILED</span>`
+    : isPending
+      ? `<span class="paid-badge" style="background:#FEF3C7; border-color:#FDE68A; color:#D97706;"><span class="paid-dot" style="background:#D97706;"></span>PENDING</span>`
+      : `<span class="paid-badge"><span class="paid-dot"></span>PAID</span>`;
+  const reasonHtml =
+    (isFailed || isPending) && input.reason
+      ? `<div style="margin-top:6px; background:${isFailed ? '#FEF2F2' : '#FFFBEB'}; border:1px solid ${isFailed ? '#FECACA' : '#FDE68A'}; border-radius:6px; padding:4px 8px; font-size:10px; color:${isFailed ? '#991B1B' : '#92400E'};"><strong>Reason:</strong> ${input.reason}</div>`
+      : '';
+
   return `
 <!DOCTYPE html>
 <html>
@@ -222,9 +242,10 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
       ${isTaxi ? `<div class="biz-meta">TAXI NO.: ${taxiNo}${dcNo ? ' &nbsp;&nbsp; DC: ' + dcNo : ''}</div>` : `<div class="biz-meta">EMP: ${staff}${staffCode ? ' (' + staffCode + ')' : ''}</div>`}
       ${input.address ? `<div class="biz-meta">${input.address}</div>` : ''}
 
-      <div class="total-paid-label">TOTAL PAID (INC GST)</div>
-      <div class="amount"><span class="dollar">$</span>${whole}<span class="decimal">.${cents}</span></div>
-      <div><span class="paid-badge"><span class="paid-dot"></span>PAID</span></div>
+      <div class="total-paid-label">${statusLabel}</div>
+      <div class="amount" ${isFailed ? 'style="color:#DC2626;"' : ''}><span class="dollar" ${isFailed ? 'style="color:#DC2626;"' : ''}>$</span>${whole}<span class="decimal" ${isFailed ? 'style="color:#DC2626;"' : ''}>.${cents}</span></div>
+      <div>${statusBadgeHtml}</div>
+      ${reasonHtml}
 
       <div class="divider"></div>
 
@@ -286,9 +307,10 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     ${isTaxi ? `<div class="biz-meta">TAXI NO.: ${taxiNo}${dcNo ? ' &nbsp;&nbsp; DC: ' + dcNo : ''}</div>` : `<div class="biz-meta">EMP: ${staff}${staffCode ? ' (' + staffCode + ')' : ''}</div>`}
     ${input.address ? `<div class="biz-meta">${input.address}</div>` : ''}
 
-    <div class="total-paid-label">TOTAL PAID (INC GST)</div>
-    <div class="amount"><span class="dollar">$</span>${whole}<span class="decimal">.${cents}</span></div>
-    <div><span class="paid-badge"><span class="paid-dot"></span>PAID</span></div>
+    <div class="total-paid-label">${statusLabel}</div>
+    <div class="amount" ${isFailed ? 'style="color:#DC2626;"' : ''}><span class="dollar" ${isFailed ? 'style="color:#DC2626;"' : ''}>$</span>${whole}<span class="decimal" ${isFailed ? 'style="color:#DC2626;"' : ''}>.${cents}</span></div>
+    <div>${statusBadgeHtml}</div>
+    ${reasonHtml}
 
     <div class="divider"></div>
 
@@ -396,6 +418,8 @@ export function buildReceiptInputFromRecentTxn(
     paymentType,
     cardBrand,
     paymentId,
+    paymentStatus: r?.payment_status || txn.payment_status || undefined,
+    reason: r?.reason || txn.reason || undefined,
     isTaxi,
     taxiNumber: taxiNo,
     dcNumber: dcNo,

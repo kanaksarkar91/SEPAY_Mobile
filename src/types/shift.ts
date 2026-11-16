@@ -4,6 +4,8 @@ export interface ShiftTransaction {
   date: string; // e.g. '26 October 2026'
   method: 'card' | 'tap_and_go';
   amount: number; // e.g. 106.00
+  payment_status?: string | null; // e.g. 'failed' | 'pending' | 'success' | 'paid'
+  reason?: string | null; // e.g. 'Incorrect PIN.', 'Card declined', etc.
   pickup: string; // e.g. 'St. Jude Medical Centre'
   dropoff: string; // e.g. '42 Richmond Road'
   pickup_location?: string;

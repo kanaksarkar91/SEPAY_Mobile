@@ -26,6 +26,7 @@ import {
   generateReceiptHtml,
   getExportFilename,
 } from '../../services/receiptExportService';
+import { getPaymentStatusInfo } from './PaymentStatusBadge';
 import { normalizeImageUrl } from '../../utils/assetUtils';
 import { formatSydneyToUserDateTime } from '../../utils/dateUtils';
 
@@ -79,6 +80,8 @@ export default function ReceiptShareModal({
   const paymentMethodLabel = receiptInput.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
   const payId = receiptInput.paymentId || '--';
   const dt = receiptInput.dateTime || formatSydneyToUserDateTime(new Date());
+
+  const statusInfo = getPaymentStatusInfo(receiptInput.paymentStatus, receiptInput.reason);
 
   const bk = receiptInput.breakdown;
   const bkTotal =
@@ -529,16 +532,60 @@ export default function ReceiptShareModal({
               ) : null}
 
               <View style={styles.shareAmountSection}>
-                <Text style={styles.shareTotalPaidLabel}>TOTAL PAID (INC GST)</Text>
+                <Text style={styles.shareTotalPaidLabel}>
+                  {statusInfo.isFailed
+                    ? 'TOTAL AMOUNT (FAILED)'
+                    : statusInfo.isPending
+                      ? 'TOTAL AMOUNT (PENDING)'
+                      : 'TOTAL PAID (INC GST)'}
+                </Text>
                 <View style={styles.shareAmountWrap}>
-                  <Text style={styles.shareDollarSign}>$ </Text>
-                  <Text style={styles.shareAmountInt}>{whole}</Text>
-                  <Text style={styles.shareAmountDec}>.{cents}</Text>
+                  <Text style={[styles.shareDollarSign, statusInfo.isFailed && { color: '#DC2626' }]}>$ </Text>
+                  <Text style={[styles.shareAmountInt, statusInfo.isFailed && { color: '#DC2626' }]}>{whole}</Text>
+                  <Text style={[styles.shareAmountDec, statusInfo.isFailed && { color: '#DC2626' }]}>.{cents}</Text>
                 </View>
-                <View style={styles.sharePaidBadge}>
-                  <View style={styles.shareGreenDot} />
-                  <Text style={styles.sharePaidText}>PAID</Text>
-                </View>
+                {statusInfo.isFailed ? (
+                  <View style={[styles.sharePaidBadge, styles.shareFailedBadge]}>
+                    <View style={styles.shareRedDot} />
+                    <Text style={styles.shareFailedText}>FAILED</Text>
+                  </View>
+                ) : statusInfo.isPending ? (
+                  <View style={[styles.sharePaidBadge, styles.sharePendingBadge]}>
+                    <View style={styles.shareAmberDot} />
+                    <Text style={styles.sharePendingText}>PENDING</Text>
+                  </View>
+                ) : (
+                  <View style={styles.sharePaidBadge}>
+                    <View style={styles.shareGreenDot} />
+                    <Text style={styles.sharePaidText}>PAID</Text>
+                  </View>
+                )}
+
+                {/* Reason callout if failed or pending */}
+                {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                  <View
+                    style={[
+                      styles.shareReasonBox,
+                      statusInfo.isFailed ? styles.shareReasonBoxFailed : styles.shareReasonBoxPending,
+                    ]}
+                  >
+                    <Ionicons
+                      name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                      size={12}
+                      color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.shareReasonBoxText,
+                        statusInfo.isFailed ? styles.shareReasonBoxTextFailed : styles.shareReasonBoxTextPending,
+                      ]}
+                    >
+                      <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                      {statusInfo.reason}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.shareCardDivider} />
@@ -945,6 +992,70 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#059669',
     letterSpacing: 0.5,
+  },
+  shareFailedBadge: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA',
+  },
+  shareRedDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#DC2626',
+    marginRight: 4,
+  },
+  shareFailedText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.5,
+  },
+  sharePendingBadge: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+  shareAmberDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#D97706',
+    marginRight: 4,
+  },
+  sharePendingText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#D97706',
+    letterSpacing: 0.5,
+  },
+  shareReasonBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 4,
+    maxWidth: '92%',
+  },
+  shareReasonBoxFailed: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  shareReasonBoxPending: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  shareReasonBoxText: {
+    fontSize: 9.5,
+    flexShrink: 1,
+    lineHeight: 13,
+  },
+  shareReasonBoxTextFailed: {
+    color: '#991B1B',
+  },
+  shareReasonBoxTextPending: {
+    color: '#92400E',
   },
   shareCardDivider: {
     width: '100%',

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Image,
   Share,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +19,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import HeaderBar from '../common/HeaderBar';
 import ReceiptShareModal from '../common/ReceiptShareModal';
+import { getPaymentStatusInfo } from '../common/PaymentStatusBadge';
 import { UnifiedReceiptInput, printReceipt } from '../../services/receiptExportService';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { ShiftRecord, ShiftTransaction } from '../../types/shift';
@@ -32,10 +35,29 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   const insets = useSafeAreaInsets();
   const { showAlert } = useConfirmModal();
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filterType, setFilterType] = useState<TxnFilterType>('all');
   const [_isExporting, _setIsExporting] = useState(false);
   const [selectedTxnForShare, setSelectedTxnForShare] = useState<ShiftTransaction | null>(null);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
+
+  // Debounced search query update (800ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInputValue.trim());
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [searchInputValue]);
+
+  const handleSearchSubmit = () => {
+    Keyboard.dismiss();
+    setSearchQuery(searchInputValue.trim());
+  };
+
+  const handleClearSearch = () => {
+    setSearchInputValue('');
+    setSearchQuery('');
+  };
 
   const getTxnReceiptInput = useCallback(
     (txn: ShiftTransaction): UnifiedReceiptInput => {
@@ -79,6 +101,8 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
         paymentType: payType,
         cardBrand: cardBrandVal,
         paymentId: payId,
+        paymentStatus: r?.payment_status || (txn as any).payment_status || undefined,
+        reason: r?.reason || (txn as any).reason || undefined,
         isTaxi: true,
         taxiNumber: taxiNo,
         dcNumber: dcNo,
@@ -332,22 +356,24 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   };
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
 
-      {/* Common Header Bar with Shift ID Title */}
-      <HeaderBar
-        title={shift.id}
-        showBack
-        onBack={onBack}
-      />
+        {/* Common Header Bar with Shift ID Title */}
+        <HeaderBar
+          title={shift.id}
+          showBack
+          onBack={onBack}
+        />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* ── TOP SHIFT SUMMARY CARD (Matching Image 2) ── */}
         <View style={styles.topCard}>
           {/* Driver Photo, Name and Taxi / DC Numbers */}
@@ -463,13 +489,15 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
             style={styles.searchInput}
             placeholder="Search TXN ID, destination, fare..."
             placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={searchInputValue}
+            onChangeText={setSearchInputValue}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+          {searchInputValue.length > 0 && (
+            <TouchableOpacity onPress={handleClearSearch}>
               <Ionicons name="close-circle" size={16} color="#94A3B8" />
             </TouchableOpacity>
           )}
@@ -554,6 +582,17 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
               const methodStr = `${txn.method || ''} ${(txn as any).payment_method || ''} ${(txn as any).payment_type || ''}`.toLowerCase();
               const isTap = methodStr.includes('tap') || methodStr.includes('nfc') || txn.method === 'tap_and_go';
               const isCard = !isTap;
+              const statusInfo = getPaymentStatusInfo(
+                txn.payment_status || (txn as any).receipt?.payment_status,
+                txn.reason || (txn as any).receipt?.reason
+              );
+              const extraReason =
+                statusInfo.reason &&
+                  statusInfo.reason.toLowerCase() !== 'failed' &&
+                  statusInfo.reason.toLowerCase() !== 'pending' &&
+                  statusInfo.reason.toLowerCase() !== 'success'
+                  ? ` • ${statusInfo.reason}`
+                  : '';
 
               return (
                 <View key={txn.id} style={styles.tripCard}>
@@ -578,10 +617,10 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
 
                     <View style={styles.tripAmountGroup}>
                       <Text style={styles.tripAmountCurrency}>$</Text>
-                      <Text style={styles.tripAmountWhole}>
+                      <Text style={[styles.tripAmountWhole, statusInfo.isFailed && { color: '#DC2626' }]}>
                         {Math.floor(txn.amount)}
                       </Text>
-                      <Text style={styles.tripAmountCents}>
+                      <Text style={[styles.tripAmountCents, statusInfo.isFailed && { color: '#DC2626' }]}>
                         .{((txn.amount % 1) * 100).toFixed(0).padStart(2, '0')}
                       </Text>
                     </View>
@@ -601,11 +640,63 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
                     </View>
                   </View>
 
+                  {/* Reason Callout if Failed or Pending */}
+                  {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                    <View
+                      style={[
+                        styles.reasonCallout,
+                        statusInfo.isFailed ? styles.reasonCalloutFailed : styles.reasonCalloutPending,
+                      ]}
+                    >
+                      <Ionicons
+                        name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                        size={13}
+                        color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                        style={{ marginRight: 6, marginTop: 1 }}
+                      />
+                      <Text
+                        style={[
+                          styles.reasonCalloutText,
+                          statusInfo.isFailed ? styles.reasonCalloutTextFailed : styles.reasonCalloutTextPending,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                        {statusInfo.reason}
+                      </Text>
+                    </View>
+                  )}
+
                   {/* Card Footer: Status & Action Buttons */}
                   <View style={styles.tripFooterRow}>
                     <View style={styles.verificationGroup}>
-                      <Ionicons name="checkmark-circle-outline" size={15} color="#10B981" />
-                      <Text style={styles.verificationText}>{txn.verification}</Text>
+                      <Ionicons
+                        name={
+                          statusInfo.isFailed
+                            ? 'close-circle'
+                            : statusInfo.isPending
+                              ? 'time'
+                              : 'checkmark-circle-outline'
+                        }
+                        size={15}
+                        color={statusInfo.textColor}
+                      />
+                      <Text
+                        style={[
+                          styles.verificationText,
+                          (statusInfo.isFailed || statusInfo.isPending) && {
+                            color: statusInfo.textColor,
+                            fontWeight: '700',
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {statusInfo.isFailed
+                          ? `Failed${extraReason}`
+                          : statusInfo.isPending
+                            ? `Pending${extraReason}`
+                            : txn.verification}
+                      </Text>
                     </View>
 
                     <View style={styles.tripActionButtonsRow}>
@@ -683,6 +774,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
         receiptInput={selectedShareReceiptInput}
       />
     </View>
+  </TouchableWithoutFeedback>
   );
 }
 
@@ -1230,5 +1322,37 @@ const styles = StyleSheet.create({
     color: '#0A3977',
     fontSize: 13.5,
     fontWeight: '700',
+  },
+  /* Reason Callout */
+  reasonCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginTop: 6,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+  },
+  reasonCalloutFailed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+    borderLeftColor: '#DC2626',
+  },
+  reasonCalloutPending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+    borderLeftColor: '#D97706',
+  },
+  reasonCalloutText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  reasonCalloutTextFailed: {
+    color: '#991B1B',
+  },
+  reasonCalloutTextPending: {
+    color: '#92400E',
   },
 });

@@ -15,6 +15,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import HeaderBar from '../../common/HeaderBar';
 import ReceiptShareModal from '../../common/ReceiptShareModal';
+import PaymentStatusBadge, { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { paymentSession } from '../../../services/paymentSession';
@@ -662,6 +663,10 @@ export default function OtherBusinessEmployeeDashboard({
             const timeText = formatTxnTime(txn);
             const method = (txn.payment_method || 'card').toLowerCase();
             const isTap = method.includes('tap') || method.includes('nfc');
+            const statusInfo = getPaymentStatusInfo(
+              txn.payment_status || txn.receipt?.payment_status,
+              txn.reason || txn.receipt?.reason
+            );
 
             return (
               <View
@@ -689,31 +694,72 @@ export default function OtherBusinessEmployeeDashboard({
                     </View>
                   </View>
 
-                  <Text style={styles.txnAmount}>
+                  <Text style={[styles.txnAmount, statusInfo.isFailed && { color: '#DC2626' }]}>
                     {txn.amount_formatted || `$${txn.amount?.toFixed(2) || '0.00'}`}
                   </Text>
                 </TouchableOpacity>
 
-                {/* Card Action Buttons: Reprint and Share */}
-                <View style={styles.cardActionsRow}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleReprintReceipt(txn)}
-                    activeOpacity={0.7}
-                    disabled={isPrinting}
+                {/* Reason Callout if Failed or Pending */}
+                {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                  <View
+                    style={[
+                      styles.reasonCallout,
+                      statusInfo.isFailed ? styles.reasonCalloutFailed : styles.reasonCalloutPending,
+                    ]}
                   >
-                    <Feather name="printer" size={11} color="#334155" />
-                    <Text style={styles.actionButtonText}>Reprint</Text>
-                  </TouchableOpacity>
+                    <Ionicons
+                      name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                      size={13}
+                      color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                      style={{ marginRight: 6, marginTop: 1 }}
+                    />
+                    <Text
+                      style={[
+                        styles.reasonCalloutText,
+                        statusInfo.isFailed ? styles.reasonCalloutTextFailed : styles.reasonCalloutTextPending,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                      {statusInfo.reason}
+                    </Text>
+                  </View>
+                )}
 
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleShareReceipt(txn)}
-                    activeOpacity={0.7}
-                  >
-                    <Feather name="share" size={11} color="#334155" />
-                    <Text style={styles.actionButtonText}>Share</Text>
-                  </TouchableOpacity>
+                {/* Card Bottom Row: Payment Status Badge on Left + Action Buttons on Right */}
+                <View style={styles.cardActionsRow}>
+                  <View style={styles.cardActionsLeft}>
+                    {(statusInfo.isFailed || statusInfo.isPending) && (
+                      <PaymentStatusBadge
+                        status={statusInfo.rawStatus}
+                        reason={statusInfo.reason}
+                        showReason={false}
+                        compact
+                        badgeStyle={styles.statusBadgeAction}
+                      />
+                    )}
+                  </View>
+
+                  <View style={styles.cardActionsRight}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleReprintReceipt(txn)}
+                      activeOpacity={0.7}
+                      disabled={isPrinting}
+                    >
+                      <Feather name="printer" size={11} color="#334155" />
+                      <Text style={styles.actionButtonText}>Reprint</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleShareReceipt(txn)}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="share" size={11} color="#334155" />
+                      <Text style={styles.actionButtonText}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -1222,12 +1268,21 @@ const styles = StyleSheet.create({
   cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
+    justifyContent: 'space-between',
     marginTop: 10,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+  },
+  cardActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  cardActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   actionButton: {
     flexDirection: 'row',
@@ -1244,6 +1299,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#334155',
+  },
+  statusBadgeAction: {
+    paddingVertical: 3.5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    height: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   txnLeftWrap: {
     gap: 3,
@@ -1283,5 +1346,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     color: '#0F172A',
+  },
+  /* Reason Callout */
+  reasonCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginTop: 6,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+  },
+  reasonCalloutFailed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+    borderLeftColor: '#DC2626',
+  },
+  reasonCalloutPending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+    borderLeftColor: '#D97706',
+  },
+  reasonCalloutText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  reasonCalloutTextFailed: {
+    color: '#991B1B',
+  },
+  reasonCalloutTextPending: {
+    color: '#92400E',
   },
 });

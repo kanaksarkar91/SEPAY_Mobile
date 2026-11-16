@@ -26,6 +26,7 @@ import {
 import { tokenStorage } from '../../../services/tokenStorage';
 import { receiptService, ReceiptData } from '../../../services/receiptService';
 import { printReceipt, UnifiedReceiptInput } from '../../../services/receiptExportService';
+import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 
 export default function OtherBusinessReceiptScreen() {
   const router = useRouter();
@@ -47,6 +48,8 @@ export default function OtherBusinessReceiptScreen() {
     businessLogo?: string;
     receiptJson?: string;
     service_charges?: string;
+    payment_status?: string;
+    reason?: string;
   }>();
 
   const rawAmount = params.amount || '0.00';
@@ -240,6 +243,10 @@ export default function OtherBusinessReceiptScreen() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
 
+  const paymentStatusVal = receiptData?.payment_status || params.payment_status || 'PAID';
+  const reasonVal = receiptData?.reason || params.reason || null;
+  const statusInfo = getPaymentStatusInfo(paymentStatusVal, reasonVal);
+
   const receiptInput: UnifiedReceiptInput = useMemo(() => {
     return {
       businessName,
@@ -247,12 +254,14 @@ export default function OtherBusinessReceiptScreen() {
       abn,
       phone,
       amount: effectiveNumericAmount,
-      amountFormatted: `$${formattedWithComma}.${decimalPart}`,
+      amountFormatted: receiptData?.amount_formatted || `$${formattedWithComma}.${decimalPart}`,
       dateTime: effectiveDateStr,
       paymentMethod: paymentMethodLabel,
       paymentType: paymentMethodBadgeLabel,
       cardBrand: cardBrandFinal,
       paymentId,
+      paymentStatus: paymentStatusVal,
+      reason: reasonVal,
       isTaxi: false,
       address,
       staffName: user?.name,
@@ -274,12 +283,15 @@ export default function OtherBusinessReceiptScreen() {
     paymentMethodBadgeLabel,
     cardBrandFinal,
     paymentId,
+    paymentStatusVal,
+    reasonVal,
     address,
     user?.name,
     empId,
     hasAdBanner,
     bannerImageUrl,
     breakdown,
+    receiptData?.amount_formatted,
   ]);
 
   const handleOpenShareMenu = () => {
@@ -373,20 +385,64 @@ export default function OtherBusinessReceiptScreen() {
               EMP ID: <Text style={styles.empIdBold}>{empId}</Text>
             </Text>
 
-            {/* Amount and PAID Pill Badge */}
+            {/* Amount and Status Pill Badge */}
             <View style={styles.amountSection}>
-              <Text style={styles.totalPaidLabel}>TOTAL PAID (INC GST)</Text>
+              <Text style={styles.totalPaidLabel}>
+                {statusInfo.isFailed
+                  ? 'TOTAL AMOUNT (FAILED)'
+                  : statusInfo.isPending
+                    ? 'TOTAL AMOUNT (PENDING)'
+                    : 'TOTAL PAID (INC GST)'}
+              </Text>
 
               <View style={styles.amountWrap}>
-                <Text style={styles.dollarSign}>$ </Text>
-                <Text style={styles.amountInt}>{formattedWithComma}</Text>
-                <Text style={styles.amountDec}>.{decimalPart}</Text>
+                <Text style={[styles.dollarSign, statusInfo.isFailed && { color: '#DC2626' }]}>$ </Text>
+                <Text style={[styles.amountInt, statusInfo.isFailed && { color: '#DC2626' }]}>{formattedWithComma}</Text>
+                <Text style={[styles.amountDec, statusInfo.isFailed && { color: '#DC2626' }]}>.{decimalPart}</Text>
               </View>
 
-              <View style={styles.paidBadge}>
-                <View style={styles.greenDot} />
-                <Text style={styles.paidText}>PAID</Text>
-              </View>
+              {statusInfo.isFailed ? (
+                <View style={[styles.paidBadge, styles.failedBadge]}>
+                  <View style={styles.redDot} />
+                  <Text style={styles.failedText}>FAILED</Text>
+                </View>
+              ) : statusInfo.isPending ? (
+                <View style={[styles.paidBadge, styles.pendingBadge]}>
+                  <View style={styles.amberDot} />
+                  <Text style={styles.pendingText}>PENDING</Text>
+                </View>
+              ) : (
+                <View style={styles.paidBadge}>
+                  <View style={styles.greenDot} />
+                  <Text style={styles.paidText}>PAID</Text>
+                </View>
+              )}
+
+              {/* Reason callout if failed or pending */}
+              {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                <View
+                  style={[
+                    styles.reasonBox,
+                    statusInfo.isFailed ? styles.reasonBoxFailed : styles.reasonBoxPending,
+                  ]}
+                >
+                  <Ionicons
+                    name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                    size={14}
+                    color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text
+                    style={[
+                      styles.reasonBoxText,
+                      statusInfo.isFailed ? styles.reasonBoxTextFailed : styles.reasonBoxTextPending,
+                    ]}
+                  >
+                    <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                    {statusInfo.reason}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Divider */}
@@ -704,6 +760,68 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#166534',
     letterSpacing: 0.6,
+  },
+  failedBadge: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FECACA',
+  },
+  redDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#DC2626',
+  },
+  failedText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.6,
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+  amberDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#D97706',
+  },
+  pendingText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#D97706',
+    letterSpacing: 0.6,
+  },
+  reasonBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 8,
+    maxWidth: '92%',
+  },
+  reasonBoxFailed: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  reasonBoxPending: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  reasonBoxText: {
+    fontSize: 11,
+    flexShrink: 1,
+    lineHeight: 15,
+  },
+  reasonBoxTextFailed: {
+    color: '#991B1B',
+  },
+  reasonBoxTextPending: {
+    color: '#92400E',
   },
 
   /* Card Divider */

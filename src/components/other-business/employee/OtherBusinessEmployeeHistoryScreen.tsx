@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -62,6 +64,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInputValue, setSearchInputValue] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid'>('all');
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
@@ -223,21 +226,23 @@ export default function OtherBusinessEmployeeHistoryScreen({
     fetchHistoryRef.current = fetchHistory;
   });
 
-  // Debounced search input to query API smoothly without lagging keystrokes
+  // Debounced search input to query API smoothly without lagging keystrokes (increased to 800ms)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    if (searchQuery === activeSearchRef.current) return;
-
     const timer = setTimeout(() => {
-      activeSearchRef.current = searchQuery;
-      fetchHistoryRef.current({ page: 1, search: searchQuery });
-    }, 450);
+      const trimmed = searchInputValue.trim();
+      if (trimmed !== activeSearchRef.current) {
+        activeSearchRef.current = trimmed;
+        setSearchQuery(trimmed);
+        fetchHistoryRef.current({ page: 1, search: trimmed });
+      }
+    }, 800);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchInputValue]);
 
   const handleRefresh = useCallback(() => {
     fetchHistoryRef.current({ page: 1, isRefresh: true });
@@ -281,11 +286,17 @@ export default function OtherBusinessEmployeeHistoryScreen({
   };
 
   const handleSearchSubmit = () => {
-    activeSearchRef.current = searchQuery;
-    fetchHistory({ page: 1, search: searchQuery });
+    Keyboard.dismiss();
+    const trimmed = searchInputValue.trim();
+    if (trimmed !== activeSearchRef.current) {
+      activeSearchRef.current = trimmed;
+      setSearchQuery(trimmed);
+      fetchHistory({ page: 1, search: trimmed });
+    }
   };
 
   const handleClearSearch = () => {
+    setSearchInputValue('');
     setSearchQuery('');
     activeSearchRef.current = '';
     fetchHistory({ page: 1, search: '' });
@@ -335,28 +346,30 @@ export default function OtherBusinessEmployeeHistoryScreen({
   const displayEmpId = shiftHistoryData?.header?.emp_id || empId;
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
 
-      {/* ── HEADER BAR (Centered Title & EMP ID Subtitle) ── */}
-      <HeaderBar
-        title={shiftHistoryData?.header?.title || 'Shift History'}
-        showBack={false}
-        subtitle={
-          <View style={styles.headerSubtitleRow}>
-            <Text style={styles.empIdLabel}>EMP ID: </Text>
-            <Text style={styles.empIdValue}>{displayEmpId}</Text>
-          </View>
-        }
-      />
+        {/* ── HEADER BAR (Centered Title & EMP ID Subtitle) ── */}
+        <HeaderBar
+          title={shiftHistoryData?.header?.title || 'Shift History'}
+          showBack={false}
+          subtitle={
+            <View style={styles.headerSubtitleRow}>
+              <Text style={styles.empIdLabel}>EMP ID: </Text>
+              <Text style={styles.empIdValue}>{displayEmpId}</Text>
+            </View>
+          }
+        />
 
-      <FlatList
-        data={shiftRecords}
-        keyExtractor={(item, index) => `${item.id || item.shift_id || index}`}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}
-        onEndReached={handleLoadMore}
+        <FlatList
+          data={shiftRecords}
+          keyExtractor={(item, index) => `${item.id || item.shift_id || index}`}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={styles.scrollContent}
+          onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
@@ -377,14 +390,14 @@ export default function OtherBusinessEmployeeHistoryScreen({
                   style={styles.searchInput}
                   placeholder="Search Shift ID..."
                   placeholderTextColor="#94A3B8"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  value={searchInputValue}
+                  onChangeText={setSearchInputValue}
                   onSubmitEditing={handleSearchSubmit}
                   returnKeyType="search"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {searchQuery.length > 0 && (
+                {searchInputValue.length > 0 && (
                   <TouchableOpacity
                     onPress={handleClearSearch}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -733,6 +746,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
         onApply={handleApplyDateRange}
       />
     </View>
+  </TouchableWithoutFeedback>
   );
 }
 
