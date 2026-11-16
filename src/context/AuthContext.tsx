@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { router } from 'expo-router';
 import { authService } from '../services/authService';
 import { tokenStorage } from '../services/tokenStorage';
+import { deviceService } from '../services/deviceService';
+import { onUnauthorized, resetUnauthorizedHandling } from '../services/apiClient';
 import { onDashboardHeaderSync, dashboardService } from '../services/dashboardService';
 import { APP_CONFIG } from '../constants/appConfig';
 
@@ -99,6 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function restoreSession() {
       try {
+        // Pre-warm device ID in background
+        deviceService.getDeviceId().catch(() => {});
+
         const { user: storedUser, accessToken } = await tokenStorage.loadStoredSession();
         if (storedUser && accessToken) {
           setUser(storedUser);
@@ -116,6 +122,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSession();
   }, []);
 
+  // Listen for 401 Unauthorized from backend (e.g. single login kicked out from another device)
+  useEffect(() => {
+    const unsub = onUnauthorized(async (reason) => {
+      console.warn('🔒 [AuthContext] 401 Unauthorized received. Logging out and redirecting to login:', reason);
+      setIsAuthenticated(false);
+      setUser(EMPTY_USER);
+      await authService.logout().catch(() => {});
+      try {
+        router.replace({
+          pathname: '/login',
+          params: {
+            sessionExpired: '1',
+            reason: reason || 'Session expired or logged in from another device. Please sign in again.',
+          },
+        });
+      } catch (navErr) {
+        console.warn('⚠️ [AuthContext] Navigation to login on 401 failed:', navErr);
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
   const login = async (
     inputUsername: string,
     inputPassword: string
@@ -124,12 +153,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const trimmedPass = inputPassword.trim();
 
     try {
+      resetUnauthorizedHandling();
+      const deviceId = await deviceService.getDeviceId();
+      const platform = deviceService.getPlatform();
+
       const liveUser = await authService.login({
         username: trimmedUser,
         password: trimmedPass,
         deviceInfo: {
-          platform: 'android',
-          deviceId: 'D9F345A1-9721-4E65-B6E3-138240D9F7C2',
+          platform,
+          deviceId,
           appVersion: APP_CONFIG.version,
         },
       });
@@ -156,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = async () => {
+    resetUnauthorizedHandling();
     setIsAuthenticated(false);
     setUser(EMPTY_USER);
     await authService.logout();

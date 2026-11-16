@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import { config } from '../constants/config';
+import { deviceService } from './deviceService';
 import type { ReceiptData } from './receiptService';
 
 export interface ActiveShiftData {
@@ -391,7 +391,7 @@ export const shiftService = {
    * Starts a new work session and captures start time and shift ID.
    */
   startShift: async (payload?: StartShiftPayload): Promise<StartShiftResponse> => {
-    const deviceId = payload?.device_id || config.defaultDeviceId;
+    const deviceId = payload?.device_id || (await deviceService.getDeviceId());
     const response = await apiClient.post<StartShiftResponse>('/api/shift/start', {
       device_id: deviceId,
     });

@@ -4,6 +4,7 @@ import { clearStripeCache } from './stripeApi';
 import { clearDashboardCache } from './dashboardService';
 import { receiptService } from './receiptService';
 import { shiftService } from './shiftService';
+import { deviceService } from './deviceService';
 import { LoginType, UserProfile } from '../context/AuthContext';
 
 export interface LoginPayload {
@@ -260,10 +261,11 @@ export const authService = {
    */
   logout: async (payload?: LogoutPayload): Promise<LogoutResponse | null> => {
     try {
+      const deviceId = payload?.deviceId || (await deviceService.getDeviceId());
       const response = await apiClient.post<LogoutResponse>(
         '/api/logout',
-        payload || {
-          deviceId: 'D9F345A1-9721-4E65-B6E3-138240D9F7C2',
+        {
+          deviceId,
         }
       );
       return response.data;

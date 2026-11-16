@@ -18,7 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
 import { APP_CONFIG } from '../constants/appConfig';
@@ -28,12 +28,17 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ sessionExpired?: string; reason?: string }>();
   const { login } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(() =>
+    params.sessionExpired === '1'
+      ? (params.reason || 'Session expired or logged in from another device. Please sign in again.')
+      : ''
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {

@@ -1,7 +1,45 @@
 import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import { config } from '../constants/config';
 import { tokenStorage } from './tokenStorage';
+import { deviceService } from './deviceService';
 import { appLogger } from './appLogger';
+
+export type UnauthorizedListener = (reason: string) => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+let isHandlingUnauthorized = false;
+
+/**
+ * Register a listener for 401 Unauthorized events (e.g. single login kicked out from another device)
+ */
+export function onUnauthorized(callback: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(callback);
+  return () => {
+    unauthorizedListeners.delete(callback);
+  };
+}
+
+/**
+ * Reset 401 handling debounce lock upon fresh successful login
+ */
+export function resetUnauthorizedHandling(): void {
+  isHandlingUnauthorized = false;
+}
+
+function broadcastUnauthorized(reason: string) {
+  if (isHandlingUnauthorized) return;
+  isHandlingUnauthorized = true;
+  appLogger.warn('API', `🔒 401 Unauthorized on protected endpoint: ${reason}. Terminating session...`);
+  unauthorizedListeners.forEach((listener) => {
+    try {
+      listener(reason);
+    } catch (e) {
+      console.warn('⚠️ Error in unauthorized listener:', e);
+    }
+  });
+  setTimeout(() => {
+    isHandlingUnauthorized = false;
+  }, 3000);
+}
 
 /**
  * Standard API Client with Axios
@@ -23,8 +61,15 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (reqConfig: InternalAxiosRequestConfig) => {
     const token = tokenStorage.getAccessToken();
-    if (token && reqConfig.headers) {
-      reqConfig.headers.Authorization = `Bearer ${token}`;
+    const deviceId = deviceService.getSyncDeviceId();
+    if (reqConfig.headers) {
+      if (token) {
+        reqConfig.headers.Authorization = `Bearer ${token}`;
+      }
+      if (deviceId) {
+        reqConfig.headers['X-Device-Id'] = deviceId;
+      }
+      reqConfig.headers['X-Platform'] = deviceService.getPlatform();
     }
 
     const fullUrl = `${reqConfig.baseURL || ''}${reqConfig.url || ''}`;
@@ -101,9 +146,20 @@ apiClient.interceptors.response.use(
     }
     console.log('====================================================\n');
 
-    if (error.response?.status === 401 && !error.config?.url?.includes('/api/location')) {
-      // Clear token when session expires
-      tokenStorage.clearTokens();
+    if (error.response?.status === 401) {
+      const url = error.config?.url || '';
+      const isAuthEndpoint =
+        url.includes('/api/login') ||
+        url.includes('/api/location') ||
+        url.includes('/api/password');
+
+      if (!isAuthEndpoint) {
+        tokenStorage.clearTokens();
+        const reason =
+          error.response?.data?.message ||
+          'Session expired or you were signed in on another device. Please sign in again.';
+        broadcastUnauthorized(reason);
+      }
     }
 
     const responseData = error.response?.data as any;
