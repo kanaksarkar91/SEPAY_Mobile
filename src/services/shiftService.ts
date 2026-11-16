@@ -259,6 +259,8 @@ export interface ShiftDetailsTransactionItem {
   amount_formatted: string;
   payment_method: string;
   payment_method_id: number;
+  payment_status?: string | null;
+  reason?: string | null;
   terminal_id?: string | null;
   pickup_location?: string | null;
   drop_location?: string | null;

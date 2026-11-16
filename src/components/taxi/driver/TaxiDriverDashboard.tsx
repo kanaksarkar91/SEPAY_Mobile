@@ -15,6 +15,7 @@ import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import HeaderBar from '../../common/HeaderBar';
 import ReceiptShareModal from '../../common/ReceiptShareModal';
+import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 import { useAuth } from '../../../context/AuthContext';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { paymentSession } from '../../../services/paymentSession';
@@ -732,6 +733,10 @@ export default function TaxiDriverDashboard({
             const pickupText = txn.pickup || txn.pickup_location || txn.route?.pickup;
             const dropoffText = txn.dropoff || txn.dropoff_location || txn.drop_location || txn.route?.dropoff;
             const hasRoute = Boolean(pickupText || dropoffText);
+            const statusInfo = getPaymentStatusInfo(
+              txn.payment_status || txn.receipt?.payment_status,
+              txn.reason || txn.receipt?.reason
+            );
 
             return (
               <View
@@ -768,11 +773,12 @@ export default function TaxiDriverDashboard({
                         {txn.payment_method_label || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card')}
                       </Text>
                     </View>
+
                     <View style={styles.spacer} />
-                    <Text style={styles.tripAmountText}>
-                      <Text style={styles.dollarOrange}>$</Text>
+                    <Text style={[styles.tripAmountText, statusInfo.isFailed && { color: '#DC2626' }]}>
+                      <Text style={[styles.dollarOrange, statusInfo.isFailed && { color: '#DC2626' }]}>$</Text>
                       {split.whole}
-                      <Text style={styles.tripCents}>{split.cents}</Text>
+                      <Text style={[styles.tripCents, statusInfo.isFailed && { color: '#DC2626' }]}>{split.cents}</Text>
                     </Text>
                   </View>
 
@@ -791,6 +797,33 @@ export default function TaxiDriverDashboard({
                           <Text style={styles.routeAddressText}>{dropoffText}</Text>
                         </View>
                       )}
+                    </View>
+                  )}
+
+                  {/* Reason Callout if Failed or Pending */}
+                  {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                    <View
+                      style={[
+                        styles.reasonCallout,
+                        statusInfo.isFailed ? styles.reasonCalloutFailed : styles.reasonCalloutPending,
+                      ]}
+                    >
+                      <Ionicons
+                        name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                        size={13}
+                        color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                        style={{ marginRight: 6, marginTop: 1 }}
+                      />
+                      <Text
+                        style={[
+                          styles.reasonCalloutText,
+                          statusInfo.isFailed ? styles.reasonCalloutTextFailed : styles.reasonCalloutTextPending,
+                        ]}
+                        numberOfLines={2}
+                      >
+                        <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                        {statusInfo.reason}
+                      </Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -1395,5 +1428,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#334155',
+  },
+  /* Reason Callout */
+  reasonCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginTop: 6,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+  },
+  reasonCalloutFailed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+    borderLeftColor: '#DC2626',
+  },
+  reasonCalloutPending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+    borderLeftColor: '#D97706',
+  },
+  reasonCalloutText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  reasonCalloutTextFailed: {
+    color: '#991B1B',
+  },
+  reasonCalloutTextPending: {
+    color: '#92400E',
   },
 });

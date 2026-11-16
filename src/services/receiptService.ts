@@ -19,6 +19,7 @@ export interface ReceiptData {
   amount?: number;
   amount_formatted?: string;
   payment_status?: string;
+  reason?: string | null;
   date_time?: string;
   payment_type?: string | null;
   payment_method?: string;

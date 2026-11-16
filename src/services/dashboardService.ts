@@ -133,6 +133,7 @@ export interface RecentTransactionReceipt {
   amount?: number;
   amount_formatted?: string;
   payment_status?: string;
+  reason?: string | null;
   date_time?: string;
   payment_method?: string;
   payment_type?: string;
@@ -162,6 +163,7 @@ export interface RecentTransactionItem {
   time_formatted?: string;
   status?: string;
   payment_status?: string;
+  reason?: string | null;
   pickup?: string;
   dropoff?: string;
   pickup_location?: string;

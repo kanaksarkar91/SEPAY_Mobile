@@ -38,6 +38,7 @@ import {
   formatTxnDateTime,
 } from '../../../utils/dateUtils';
 import LiveBadge from '../../common/LiveBadge';
+import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 
 interface OtherBusinessShiftDetailsScreenProps {
   shiftId: string;
@@ -404,6 +405,8 @@ export default function OtherBusinessShiftDetailsScreen({
         dateStr: txn.receipt?.date_time || txn.date,
         service_charges: String(txn.receipt?.payment_break_down?.service_fee || 0),
         receiptJson: txn.receipt ? JSON.stringify(txn.receipt) : '',
+        payment_status: txn.payment_status || txn.receipt?.payment_status || '',
+        reason: txn.reason || txn.receipt?.reason || '',
       },
     });
   };
@@ -692,6 +695,17 @@ export default function OtherBusinessShiftDetailsScreen({
                   const dropLoc = txn.drop_location || txn.receipt?.drop_location;
                   const hasRoute = Boolean(pickupLoc || dropLoc);
                   const breakdown = txn.receipt?.payment_break_down;
+                  const statusInfo = getPaymentStatusInfo(
+                    txn.payment_status || txn.receipt?.payment_status,
+                    txn.reason || txn.receipt?.reason
+                  );
+                  const extraReason =
+                    statusInfo.reason &&
+                      statusInfo.reason.toLowerCase() !== 'failed' &&
+                      statusInfo.reason.toLowerCase() !== 'pending' &&
+                      statusInfo.reason.toLowerCase() !== 'success'
+                      ? ` • ${statusInfo.reason}`
+                      : '';
 
                   return (
                     <TouchableOpacity
@@ -700,7 +714,7 @@ export default function OtherBusinessShiftDetailsScreen({
                       activeOpacity={0.85}
                       onPress={() => handleOpenReceipt(txn)}
                     >
-                      {/* Top Row: ID + Time + Method Chip + Amount */}
+                      {/* Top Row: ID + Time + Method Chip + Status Badge + Amount */}
                       <View style={styles.txnTopRow}>
                         <View style={styles.txnIdTimeGroup}>
                           <Text style={styles.txnIdText}>{txn.transaction_id}</Text>
@@ -726,10 +740,10 @@ export default function OtherBusinessShiftDetailsScreen({
 
                         <View style={styles.txnAmountGroup}>
                           <Text style={styles.txnAmountCurrency}>$</Text>
-                          <Text style={styles.txnAmountWhole}>
+                          <Text style={[styles.txnAmountWhole, statusInfo.isFailed && { color: '#DC2626' }]}>
                             {Math.floor(txn.amount).toLocaleString('en-US')}
                           </Text>
-                          <Text style={styles.txnAmountCents}>
+                          <Text style={[styles.txnAmountCents, statusInfo.isFailed && { color: '#DC2626' }]}>
                             .{((txn.amount % 1) * 100).toFixed(0).padStart(2, '0')}
                           </Text>
                         </View>
@@ -763,11 +777,63 @@ export default function OtherBusinessShiftDetailsScreen({
                         </View>
                       )}
 
+                      {/* Reason Callout if Failed or Pending */}
+                      {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                        <View
+                          style={[
+                            styles.reasonCallout,
+                            statusInfo.isFailed ? styles.reasonCalloutFailed : styles.reasonCalloutPending,
+                          ]}
+                        >
+                          <Ionicons
+                            name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                            size={13}
+                            color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                            style={{ marginRight: 6, marginTop: 1 }}
+                          />
+                          <Text
+                            style={[
+                              styles.reasonCalloutText,
+                              statusInfo.isFailed ? styles.reasonCalloutTextFailed : styles.reasonCalloutTextPending,
+                            ]}
+                            numberOfLines={2}
+                          >
+                            <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                            {statusInfo.reason}
+                          </Text>
+                        </View>
+                      )}
+
                       {/* Bottom Row: Settlement Verification + Action Buttons */}
                       <View style={styles.txnBottomRow}>
                         <View style={styles.verificationGroup}>
-                          <Ionicons name="checkmark-circle-outline" size={14} color="#10B981" />
-                          <Text style={styles.verificationText}>Settled • Successful</Text>
+                          <Ionicons
+                            name={
+                              statusInfo.isFailed
+                                ? 'close-circle'
+                                : statusInfo.isPending
+                                  ? 'time'
+                                  : 'checkmark-circle-outline'
+                            }
+                            size={14}
+                            color={statusInfo.textColor}
+                          />
+                          <Text
+                            style={[
+                              styles.verificationText,
+                              (statusInfo.isFailed || statusInfo.isPending) && {
+                                color: statusInfo.textColor,
+                                fontWeight: '700',
+                              },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {statusInfo.isFailed
+                              ? `Failed`
+                              : statusInfo.isPending
+                                ? `Pending`
+                                : 'Settled • Successful'}
+                          </Text>
                         </View>
 
                         <View style={styles.txnActionsRow}>
@@ -1508,6 +1574,39 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#B45309',
+  },
+
+  /* Reason Callout */
+  reasonCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+  },
+  reasonCalloutFailed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+    borderLeftColor: '#DC2626',
+  },
+  reasonCalloutPending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+    borderLeftColor: '#D97706',
+  },
+  reasonCalloutText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  reasonCalloutTextFailed: {
+    color: '#991B1B',
+  },
+  reasonCalloutTextPending: {
+    color: '#92400E',
   },
 
 });

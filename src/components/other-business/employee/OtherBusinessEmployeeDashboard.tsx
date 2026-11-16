@@ -15,6 +15,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import HeaderBar from '../../common/HeaderBar';
 import ReceiptShareModal from '../../common/ReceiptShareModal';
+import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { paymentSession } from '../../../services/paymentSession';
@@ -662,6 +663,10 @@ export default function OtherBusinessEmployeeDashboard({
             const timeText = formatTxnTime(txn);
             const method = (txn.payment_method || 'card').toLowerCase();
             const isTap = method.includes('tap') || method.includes('nfc');
+            const statusInfo = getPaymentStatusInfo(
+              txn.payment_status || txn.receipt?.payment_status,
+              txn.reason || txn.receipt?.reason
+            );
 
             return (
               <View
@@ -689,10 +694,37 @@ export default function OtherBusinessEmployeeDashboard({
                     </View>
                   </View>
 
-                  <Text style={styles.txnAmount}>
+                  <Text style={[styles.txnAmount, statusInfo.isFailed && { color: '#DC2626' }]}>
                     {txn.amount_formatted || `$${txn.amount?.toFixed(2) || '0.00'}`}
                   </Text>
                 </TouchableOpacity>
+
+                {/* Reason Callout if Failed or Pending */}
+                {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                  <View
+                    style={[
+                      styles.reasonCallout,
+                      statusInfo.isFailed ? styles.reasonCalloutFailed : styles.reasonCalloutPending,
+                    ]}
+                  >
+                    <Ionicons
+                      name={statusInfo.isFailed ? 'alert-circle-outline' : 'time-outline'}
+                      size={13}
+                      color={statusInfo.isFailed ? '#DC2626' : '#D97706'}
+                      style={{ marginRight: 6, marginTop: 1 }}
+                    />
+                    <Text
+                      style={[
+                        styles.reasonCalloutText,
+                        statusInfo.isFailed ? styles.reasonCalloutTextFailed : styles.reasonCalloutTextPending,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      <Text style={{ fontWeight: '700' }}>Reason: </Text>
+                      {statusInfo.reason}
+                    </Text>
+                  </View>
+                )}
 
                 {/* Card Action Buttons: Reprint and Share */}
                 <View style={styles.cardActionsRow}>
@@ -1283,5 +1315,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     color: '#0F172A',
+  },
+  /* Reason Callout */
+  reasonCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginTop: 6,
+    borderWidth: 1,
+    borderLeftWidth: 3,
+  },
+  reasonCalloutFailed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+    borderLeftColor: '#DC2626',
+  },
+  reasonCalloutPending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+    borderLeftColor: '#D97706',
+  },
+  reasonCalloutText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  reasonCalloutTextFailed: {
+    color: '#991B1B',
+  },
+  reasonCalloutTextPending: {
+    color: '#92400E',
   },
 });
