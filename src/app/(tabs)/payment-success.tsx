@@ -164,6 +164,8 @@ export default function PaymentSuccessScreen() {
         businessLogo: serverReceipt?.business_logo || '',
         receiptJson: serverReceipt ? JSON.stringify(serverReceipt) : '',
         service_charges: params.service_charges || '',
+        payment_status: serverReceipt?.payment_status || 'PAID',
+        reason: serverReceipt?.reason || '',
       },
     });
   };

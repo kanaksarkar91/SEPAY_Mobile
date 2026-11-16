@@ -19,7 +19,7 @@ export function getPaymentStatusInfo(
   reason?: string | null
 ): PaymentStatusInfo {
   const raw = (status || '').toLowerCase().trim();
-  const isFailed = raw === 'failed' || raw === 'failure';
+  const isFailed = raw === 'failed' || raw === 'failure' || raw === 'declined' || raw === 'cancelled';
   const isPending = raw === 'pending' || raw === 'processing';
   const isSuccess = raw === 'success' || raw === 'paid' || raw === 'settled';
 

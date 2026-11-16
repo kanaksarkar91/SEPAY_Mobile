@@ -396,9 +396,9 @@ export default function OtherBusinessReceiptScreen() {
               </Text>
 
               <View style={styles.amountWrap}>
-                <Text style={styles.dollarSign}>$ </Text>
-                <Text style={styles.amountInt}>{formattedWithComma}</Text>
-                <Text style={styles.amountDec}>.{decimalPart}</Text>
+                <Text style={[styles.dollarSign, statusInfo.isFailed && { color: '#DC2626' }]}>$ </Text>
+                <Text style={[styles.amountInt, statusInfo.isFailed && { color: '#DC2626' }]}>{formattedWithComma}</Text>
+                <Text style={[styles.amountDec, statusInfo.isFailed && { color: '#DC2626' }]}>.{decimalPart}</Text>
               </View>
 
               {statusInfo.isFailed ? (

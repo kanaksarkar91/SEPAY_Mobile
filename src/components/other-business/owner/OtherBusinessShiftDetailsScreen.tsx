@@ -280,6 +280,8 @@ export default function OtherBusinessShiftDetailsScreen({
         paymentType: payType,
         cardBrand: cardBrandVal,
         paymentId: r?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '--'),
+        paymentStatus: r?.payment_status || txn.payment_status || undefined,
+        reason: r?.reason || txn.reason || undefined,
         isTaxi,
         taxiNumber: taxiNo,
         dcNumber: dcNo,

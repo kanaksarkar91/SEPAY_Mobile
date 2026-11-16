@@ -243,7 +243,7 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
       ${input.address ? `<div class="biz-meta">${input.address}</div>` : ''}
 
       <div class="total-paid-label">${statusLabel}</div>
-      <div class="amount"><span class="dollar">$</span>${whole}<span class="decimal">.${cents}</span></div>
+      <div class="amount" ${isFailed ? 'style="color:#DC2626;"' : ''}><span class="dollar" ${isFailed ? 'style="color:#DC2626;"' : ''}>$</span>${whole}<span class="decimal" ${isFailed ? 'style="color:#DC2626;"' : ''}>.${cents}</span></div>
       <div>${statusBadgeHtml}</div>
       ${reasonHtml}
 
@@ -308,7 +308,7 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
     ${input.address ? `<div class="biz-meta">${input.address}</div>` : ''}
 
     <div class="total-paid-label">${statusLabel}</div>
-    <div class="amount"><span class="dollar">$</span>${whole}<span class="decimal">.${cents}</span></div>
+    <div class="amount" ${isFailed ? 'style="color:#DC2626;"' : ''}><span class="dollar" ${isFailed ? 'style="color:#DC2626;"' : ''}>$</span>${whole}<span class="decimal" ${isFailed ? 'style="color:#DC2626;"' : ''}>.${cents}</span></div>
     <div>${statusBadgeHtml}</div>
     ${reasonHtml}
 

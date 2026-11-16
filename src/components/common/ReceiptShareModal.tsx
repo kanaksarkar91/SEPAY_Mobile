@@ -470,9 +470,9 @@ export default function ReceiptShareModal({
                       : 'TOTAL PAID (INC GST)'}
                 </Text>
                 <View style={styles.shareAmountWrap}>
-                  <Text style={styles.shareDollarSign}>$ </Text>
-                  <Text style={styles.shareAmountInt}>{whole}</Text>
-                  <Text style={styles.shareAmountDec}>.{cents}</Text>
+                  <Text style={[styles.shareDollarSign, statusInfo.isFailed && { color: '#DC2626' }]}>$ </Text>
+                  <Text style={[styles.shareAmountInt, statusInfo.isFailed && { color: '#DC2626' }]}>{whole}</Text>
+                  <Text style={[styles.shareAmountDec, statusInfo.isFailed && { color: '#DC2626' }]}>.{cents}</Text>
                 </View>
                 {statusInfo.isFailed ? (
                   <View style={[styles.sharePaidBadge, styles.shareFailedBadge]}>

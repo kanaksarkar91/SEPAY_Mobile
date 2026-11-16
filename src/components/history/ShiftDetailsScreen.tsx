@@ -80,6 +80,8 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
         paymentType: payType,
         cardBrand: cardBrandVal,
         paymentId: payId,
+        paymentStatus: r?.payment_status || (txn as any).payment_status || undefined,
+        reason: r?.reason || (txn as any).reason || undefined,
         isTaxi: true,
         taxiNumber: taxiNo,
         dcNumber: dcNo,
