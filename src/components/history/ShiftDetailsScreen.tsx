@@ -665,9 +665,9 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
                         numberOfLines={1}
                       >
                         {statusInfo.isFailed
-                          ? `Failed`
+                          ? `Failed${extraReason}`
                           : statusInfo.isPending
-                            ? `Pending`
+                            ? `Pending${extraReason}`
                             : txn.verification}
                       </Text>
                     </View>

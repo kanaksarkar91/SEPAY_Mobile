@@ -829,9 +829,9 @@ export default function OtherBusinessShiftDetailsScreen({
                             numberOfLines={1}
                           >
                             {statusInfo.isFailed
-                              ? `Failed`
+                              ? `Failed${extraReason}`
                               : statusInfo.isPending
-                                ? `Pending`
+                                ? `Pending${extraReason}`
                                 : 'Settled • Successful'}
                           </Text>
                         </View>

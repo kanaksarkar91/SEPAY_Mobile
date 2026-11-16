@@ -15,7 +15,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import HeaderBar from '../../common/HeaderBar';
 import ReceiptShareModal from '../../common/ReceiptShareModal';
-import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
+import PaymentStatusBadge, { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { useAuth } from '../../../context/AuthContext';
 import { paymentSession } from '../../../services/paymentSession';
@@ -726,26 +726,40 @@ export default function OtherBusinessEmployeeDashboard({
                   </View>
                 )}
 
-                {/* Card Action Buttons: Reprint and Share */}
+                {/* Card Bottom Row: Payment Status Badge on Left + Action Buttons on Right */}
                 <View style={styles.cardActionsRow}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleReprintReceipt(txn)}
-                    activeOpacity={0.7}
-                    disabled={isPrinting}
-                  >
-                    <Feather name="printer" size={11} color="#334155" />
-                    <Text style={styles.actionButtonText}>Reprint</Text>
-                  </TouchableOpacity>
+                  <View style={styles.cardActionsLeft}>
+                    {(statusInfo.isFailed || statusInfo.isPending) && (
+                      <PaymentStatusBadge
+                        status={statusInfo.rawStatus}
+                        reason={statusInfo.reason}
+                        showReason={false}
+                        compact
+                        badgeStyle={styles.statusBadgeAction}
+                      />
+                    )}
+                  </View>
 
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleShareReceipt(txn)}
-                    activeOpacity={0.7}
-                  >
-                    <Feather name="share" size={11} color="#334155" />
-                    <Text style={styles.actionButtonText}>Share</Text>
-                  </TouchableOpacity>
+                  <View style={styles.cardActionsRight}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleReprintReceipt(txn)}
+                      activeOpacity={0.7}
+                      disabled={isPrinting}
+                    >
+                      <Feather name="printer" size={11} color="#334155" />
+                      <Text style={styles.actionButtonText}>Reprint</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleShareReceipt(txn)}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="share" size={11} color="#334155" />
+                      <Text style={styles.actionButtonText}>Share</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -1254,12 +1268,21 @@ const styles = StyleSheet.create({
   cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 8,
+    justifyContent: 'space-between',
     marginTop: 10,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+  },
+  cardActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  cardActionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   actionButton: {
     flexDirection: 'row',
@@ -1276,6 +1299,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#334155',
+  },
+  statusBadgeAction: {
+    paddingVertical: 3.5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    height: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   txnLeftWrap: {
     gap: 3,
