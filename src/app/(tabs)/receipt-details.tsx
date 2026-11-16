@@ -164,10 +164,11 @@ function TaxiReceiptScreen() {
 
   const isLogoValid = Boolean(logoUrl) && failedLogoUrl !== logoUrl;
 
+  const safeNumericAmount = isNaN(numericAmount) ? 0 : numericAmount;
   const effectiveNumericAmount =
-    receiptData?.amount !== undefined && receiptData?.amount !== null
+    receiptData?.amount !== undefined && receiptData?.amount !== null && !isNaN(Number(receiptData.amount))
       ? Number(receiptData.amount)
-      : numericAmount;
+      : safeNumericAmount;
 
   const abn =
     receiptData?.abn ||
@@ -212,8 +213,9 @@ function TaxiReceiptScreen() {
   }, [receiptDateTime, params.timestamp, params.dateStr]);
 
   // Amount formatting: integer and decimal parts
-  const formattedWithComma = Math.floor(effectiveNumericAmount).toLocaleString('en-US');
-  const decimalPart = (effectiveNumericAmount % 1).toFixed(2).split('.')[1] || '00';
+  const safeFloor = isNaN(effectiveNumericAmount) ? 0 : Math.floor(effectiveNumericAmount);
+  const formattedWithComma = safeFloor.toLocaleString('en-US');
+  const decimalPart = !isNaN(effectiveNumericAmount) ? (effectiveNumericAmount % 1).toFixed(2).split('.')[1] || '00' : '00';
 
   // Payment Breakdown (POST /api/payment/fees or GET /api/receipt/:id)
   const breakdown = useMemo(() => {
@@ -238,19 +240,19 @@ function TaxiReceiptScreen() {
   const hasBreakdown = true;
 
   const breakdownBaseAmount =
-    breakdown?.base_amount !== undefined && breakdown?.base_amount !== null
+    breakdown?.base_amount !== undefined && breakdown?.base_amount !== null && !isNaN(Number(breakdown.base_amount))
       ? Number(breakdown.base_amount)
       : breakdown?.payable_amount !== undefined && breakdown?.service_fee !== undefined
         ? Number(breakdown.payable_amount) - Number(breakdown.service_fee)
         : effectiveNumericAmount;
 
   const breakdownServiceFee =
-    breakdown?.service_fee !== undefined && breakdown?.service_fee !== null
+    breakdown?.service_fee !== undefined && breakdown?.service_fee !== null && !isNaN(Number(breakdown.service_fee))
       ? Number(breakdown.service_fee)
       : 0;
 
   const breakdownPayableAmount =
-    breakdown?.payable_amount !== undefined && breakdown?.payable_amount !== null
+    breakdown?.payable_amount !== undefined && breakdown?.payable_amount !== null && !isNaN(Number(breakdown.payable_amount))
       ? Number(breakdown.payable_amount)
       : effectiveNumericAmount;
 

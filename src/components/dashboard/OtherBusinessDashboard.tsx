@@ -21,10 +21,10 @@ interface OtherBusinessDashboardProps {
 }
 
 export default function OtherBusinessDashboard({
-  businessName = 'Habibs',
-  businessAddress = '19 WORONORA AVE, LEUMEAH, NSW 2560',
-  userName = 'Merchant Owner',
-  sessionStartTime = '7:30 AM',
+  businessName = '',
+  businessAddress = '',
+  userName = '',
+  sessionStartTime = '',
 }: OtherBusinessDashboardProps) {
   const { user } = useAuth();
   // Session & Online state (defaults to Online as shown in Figma 76:12635)

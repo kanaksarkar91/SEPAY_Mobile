@@ -255,15 +255,17 @@ export default function OtherBusinessShiftDetailsScreen({
       const dropoff = r?.drop_location || txn.drop_location || '';
       const numAmount = r?.amount !== undefined ? Number(r.amount) : Number(txn.amount);
       const dt = formatTxnDateTime(txn);
-      const method = r?.payment_method || txn.payment_method || 'Card';
-      const payType =
-        r?.payment_type ||
-        txn.payment_method ||
-        (method.toLowerCase().includes('cash')
-          ? 'Cash'
-          : method.toLowerCase().includes('tap')
-            ? 'Tap & Go'
-            : 'Card');
+      const rawMethodStr = `${r?.payment_type || ''} ${r?.payment_method || ''} ${txn.payment_method || ''}`.toLowerCase();
+      const isCash = rawMethodStr.includes('cash');
+      const isTap =
+        !isCash &&
+        (rawMethodStr.includes('tap') ||
+          rawMethodStr.includes('contactless') ||
+          rawMethodStr.includes('nfc') ||
+          (txn as any).payment_method_id === 1);
+      const payType = isCash ? 'Cash' : isTap ? 'Tap & Go' : (r?.payment_type || txn.payment_method || 'Card');
+      const method = r?.payment_method || txn.payment_method || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
+      const cardBrandVal = r?.card_brand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA');
 
       return {
         businessName: biz,
@@ -275,7 +277,7 @@ export default function OtherBusinessShiftDetailsScreen({
         dateTime: dt,
         paymentMethod: method,
         paymentType: payType,
-        cardBrand: r?.card_brand,
+        cardBrand: cardBrandVal,
         paymentId: r?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '--'),
         isTaxi,
         taxiNumber: taxiNo,

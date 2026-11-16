@@ -417,185 +417,187 @@ export default function ReceiptShareModal({
   return (
     <>
       {/* ── HIDDEN OFFSCREEN CARDS FOR HIGH-RESOLUTION PNG & GIF CAPTURE ── */}
-      <View style={styles.hiddenOffscreenContainer} pointerEvents="none" collapsable={false}>
-        {/* Main Receipt Card to Capture */}
-        <View style={styles.offscreenCardWrap} collapsable={false}>
-          <View ref={receiptCardRef} collapsable={false} style={styles.shareReceiptCard}>
-            <View style={styles.shareBadgeWrap}>
-              {logoUrl ? (
-                <Image
-                  source={{ uri: logoUrl }}
-                  style={styles.shareLogoImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Image
-                  source={require('../../../assets/taxi-logo.png')}
-                  style={styles.shareLogoImage}
-                  resizeMode="cover"
-                />
-              )}
-            </View>
-
-            <Text style={styles.shareBizName}>{biz}</Text>
-            <Text style={styles.shareTaxInvoiceHeading}>TAX INVOICE</Text>
-            <Text style={styles.shareBizMeta}>
-              ABN: {abnVal} • PH: {phoneVal}
-            </Text>
-            {isTaxi ? (
-              <Text style={styles.shareBizMeta}>
-                TAXI NO.: {taxiNo || '--'}
-                {dcNo ? `   DC: ${dcNo}` : ''}
-              </Text>
-            ) : (
-              <Text style={styles.shareBizMeta}>
-                EMP: {staff}
-                {staffCode ? ` (${staffCode})` : ''}
-              </Text>
-            )}
-            {receiptInput.address ? (
-              <Text style={styles.shareBizMeta}>{receiptInput.address}</Text>
-            ) : null}
-
-            <View style={styles.shareAmountSection}>
-              <Text style={styles.shareTotalPaidLabel}>TOTAL PAID (INC GST)</Text>
-              <View style={styles.shareAmountWrap}>
-                <Text style={styles.shareDollarSign}>$ </Text>
-                <Text style={styles.shareAmountInt}>{whole}</Text>
-                <Text style={styles.shareAmountDec}>.{cents}</Text>
-              </View>
-              <View style={styles.sharePaidBadge}>
-                <View style={styles.shareGreenDot} />
-                <Text style={styles.sharePaidText}>PAID</Text>
-              </View>
-            </View>
-
-            <View style={styles.shareCardDivider} />
-
-            {hasRoute && (
-              <>
-                <View style={styles.shareRouteSection}>
-                  <View style={styles.shareRouteCol}>
-                    <Text style={styles.shareRouteLabel}>PICKUP</Text>
-                    <Text style={styles.shareRouteVal}>
-                      {pickup || '--'}
-                    </Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={16} color="#F59E0B" style={{ marginHorizontal: 6 }} />
-                  <View style={[styles.shareRouteCol, { alignItems: 'flex-end' }]}>
-                    <Text style={[styles.shareRouteLabel, { textAlign: 'right' }]}>DROP OFF</Text>
-                    <Text style={[styles.shareRouteVal, { textAlign: 'right' }]}>
-                      {dropoff || '--'}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.shareCardDivider} />
-              </>
-            )}
-
-            {hasBk && bkBase !== null && (
-              <>
-                <View style={styles.shareBreakdownBox}>
-                  <Text style={styles.shareBreakdownHdr}>PAYMENT BREAKDOWN</Text>
-                  <View style={styles.shareBreakdownRow}>
-                    <Text style={styles.shareBreakdownLbl}>Base Amount</Text>
-                    <Text style={styles.shareBreakdownVal}>${Number(bkBase).toFixed(2)}</Text>
-                  </View>
-                  <View style={styles.shareBreakdownRow}>
-                    <Text style={styles.shareBreakdownLbl}>Service Fee</Text>
-                    <Text style={styles.shareBreakdownVal}>${Number(bkFee).toFixed(2)}</Text>
-                  </View>
-                  <View style={[styles.shareCardDivider, { marginVertical: 4 }]} />
-                  <View style={styles.shareBreakdownRow}>
-                    <Text style={[styles.shareBreakdownLbl, { fontWeight: '700', color: '#0F172A' }]}>
-                      Total (INC GST)
-                    </Text>
-                    <Text style={[styles.shareBreakdownVal, { color: '#D97706', fontWeight: '800' }]}>
-                      ${Number(bkTotal).toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.shareCardDivider} />
-              </>
-            )}
-
-            <View style={styles.shareMetaList}>
-              <View style={styles.shareMetaRow}>
-                <View>
-                  <Text style={styles.shareMetaLabel}>Date & Time</Text>
-                  <Text style={styles.shareMetaValue}>{dt}</Text>
-                </View>
-                <View style={isCash ? styles.chipCash : isTap ? styles.chipTap : styles.chipCard}>
-                  <Text style={isCash ? styles.chipCashText : isTap ? styles.chipTapText : styles.chipCardText}>
-                    {isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.shareMetaRow}>
-                <View>
-                  <Text style={styles.shareMetaLabel}>Payment Method</Text>
-                  <Text style={styles.shareMetaValue}>{paymentMethodLabel}</Text>
-                </View>
-                <View style={isCash ? styles.chipCash : styles.chipCard}>
-                  <Text style={isCash ? styles.chipCashText : styles.chipCardText}>{cardBrand}</Text>
-                </View>
-              </View>
-
-              <View style={styles.shareMetaRow}>
-                <View>
-                  <Text style={styles.shareMetaLabel}>
-                    {isCash ? 'Receipt ID' : 'Payment ID'}
-                  </Text>
-                  <Text style={styles.shareMetaValue}>{payId}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.shareFooter}>
-              <Text style={styles.shareThankYou}>
-                THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
-              </Text>
-              <Text style={styles.sharePoweredBy}>POWERED BY</Text>
-              <Image
-                source={require('../../../assets/SE-pay-logo-gif.gif')}
-                style={styles.shareSePayLogo}
-                resizeMode="contain"
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Ad Banner Card for Animated GIF */}
-        {hasAd && bannerUrl && (
+      {(visible || isSharing) && (
+        <View style={styles.hiddenOffscreenContainer} pointerEvents="none" collapsable={false}>
+          {/* Main Receipt Card to Capture */}
           <View style={styles.offscreenCardWrap} collapsable={false}>
-            <View ref={adBannerCardRef} collapsable={false} style={styles.shareAdBannerCard}>
-              <View style={styles.shareAdCardHeader}>
-                <View style={styles.shareAdSponsoredPill}>
-                  <Ionicons name="sparkles" size={11} color="#92400E" style={{ marginRight: 4 }} />
-                  <Text style={styles.shareAdSponsoredPillText}>SPONSORED ADVERTISEMENT</Text>
-                </View>
-                <Text style={styles.shareAdBrandText}>SE PAY</Text>
+            <View ref={receiptCardRef} collapsable={false} style={styles.shareReceiptCard}>
+              <View style={styles.shareBadgeWrap}>
+                {logoUrl ? (
+                  <Image
+                    source={{ uri: logoUrl }}
+                    style={styles.shareLogoImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Image
+                    source={require('../../../assets/taxi-logo.png')}
+                    style={styles.shareLogoImage}
+                    resizeMode="cover"
+                  />
+                )}
               </View>
 
-              <View style={styles.shareAdImageWrap}>
+              <Text style={styles.shareBizName}>{biz}</Text>
+              <Text style={styles.shareTaxInvoiceHeading}>TAX INVOICE</Text>
+              <Text style={styles.shareBizMeta}>
+                ABN: {abnVal} • PH: {phoneVal}
+              </Text>
+              {isTaxi ? (
+                <Text style={styles.shareBizMeta}>
+                  TAXI NO.: {taxiNo || '--'}
+                  {dcNo ? `   DC: ${dcNo}` : ''}
+                </Text>
+              ) : (
+                <Text style={styles.shareBizMeta}>
+                  EMP: {staff}
+                  {staffCode ? ` (${staffCode})` : ''}
+                </Text>
+              )}
+              {receiptInput.address ? (
+                <Text style={styles.shareBizMeta}>{receiptInput.address}</Text>
+              ) : null}
+
+              <View style={styles.shareAmountSection}>
+                <Text style={styles.shareTotalPaidLabel}>TOTAL PAID (INC GST)</Text>
+                <View style={styles.shareAmountWrap}>
+                  <Text style={styles.shareDollarSign}>$ </Text>
+                  <Text style={styles.shareAmountInt}>{whole}</Text>
+                  <Text style={styles.shareAmountDec}>.{cents}</Text>
+                </View>
+                <View style={styles.sharePaidBadge}>
+                  <View style={styles.shareGreenDot} />
+                  <Text style={styles.sharePaidText}>PAID</Text>
+                </View>
+              </View>
+
+              <View style={styles.shareCardDivider} />
+
+              {hasRoute && (
+                <>
+                  <View style={styles.shareRouteSection}>
+                    <View style={styles.shareRouteCol}>
+                      <Text style={styles.shareRouteLabel}>PICKUP</Text>
+                      <Text style={styles.shareRouteVal}>
+                        {pickup || '--'}
+                      </Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={16} color="#F59E0B" style={{ marginHorizontal: 6 }} />
+                    <View style={[styles.shareRouteCol, { alignItems: 'flex-end' }]}>
+                      <Text style={[styles.shareRouteLabel, { textAlign: 'right' }]}>DROP OFF</Text>
+                      <Text style={[styles.shareRouteVal, { textAlign: 'right' }]}>
+                        {dropoff || '--'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.shareCardDivider} />
+                </>
+              )}
+
+              {hasBk && bkBase !== null && (
+                <>
+                  <View style={styles.shareBreakdownBox}>
+                    <Text style={styles.shareBreakdownHdr}>PAYMENT BREAKDOWN</Text>
+                    <View style={styles.shareBreakdownRow}>
+                      <Text style={styles.shareBreakdownLbl}>Base Amount</Text>
+                      <Text style={styles.shareBreakdownVal}>${Number(bkBase || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.shareBreakdownRow}>
+                      <Text style={styles.shareBreakdownLbl}>Service Fee</Text>
+                      <Text style={styles.shareBreakdownVal}>${Number(bkFee || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={[styles.shareCardDivider, { marginVertical: 4 }]} />
+                    <View style={styles.shareBreakdownRow}>
+                      <Text style={[styles.shareBreakdownLbl, { fontWeight: '700', color: '#0F172A' }]}>
+                        Total (INC GST)
+                      </Text>
+                      <Text style={[styles.shareBreakdownVal, { color: '#D97706', fontWeight: '800' }]}>
+                        ${Number(bkTotal || 0).toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.shareCardDivider} />
+                </>
+              )}
+
+              <View style={styles.shareMetaList}>
+                <View style={styles.shareMetaRow}>
+                  <View>
+                    <Text style={styles.shareMetaLabel}>Date & Time</Text>
+                    <Text style={styles.shareMetaValue}>{dt}</Text>
+                  </View>
+                  <View style={isCash ? styles.chipCash : isTap ? styles.chipTap : styles.chipCard}>
+                    <Text style={isCash ? styles.chipCashText : isTap ? styles.chipTapText : styles.chipCardText}>
+                      {isCash ? '💵 Cash' : isTap ? '⚡ Tap & Go' : '💳 Card'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.shareMetaRow}>
+                  <View>
+                    <Text style={styles.shareMetaLabel}>Payment Method</Text>
+                    <Text style={styles.shareMetaValue}>{paymentMethodLabel}</Text>
+                  </View>
+                  <View style={isCash ? styles.chipCash : styles.chipCard}>
+                    <Text style={isCash ? styles.chipCashText : styles.chipCardText}>{cardBrand}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.shareMetaRow}>
+                  <View>
+                    <Text style={styles.shareMetaLabel}>
+                      {isCash ? 'Receipt ID' : 'Payment ID'}
+                    </Text>
+                    <Text style={styles.shareMetaValue}>{payId}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.shareFooter}>
+                <Text style={styles.shareThankYou}>
+                  THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
+                </Text>
+                <Text style={styles.sharePoweredBy}>POWERED BY</Text>
                 <Image
-                  source={{ uri: bannerUrl }}
-                  style={styles.shareAdImage}
+                  source={require('../../../assets/SE-pay-logo-gif.gif')}
+                  style={styles.shareSePayLogo}
                   resizeMode="contain"
                 />
               </View>
-
-              <View style={styles.shareAdFooter}>
-                <Text style={styles.shareAdFooterThank}>
-                  THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
-                </Text>
-                <Text style={styles.shareAdFooterPowered}>POWERED BY SE PAY</Text>
-              </View>
             </View>
           </View>
-        )}
-      </View>
+
+          {/* Ad Banner Card for Animated GIF */}
+          {hasAd && bannerUrl && (
+            <View style={styles.offscreenCardWrap} collapsable={false}>
+              <View ref={adBannerCardRef} collapsable={false} style={styles.shareAdBannerCard}>
+                <View style={styles.shareAdCardHeader}>
+                  <View style={styles.shareAdSponsoredPill}>
+                    <Ionicons name="sparkles" size={11} color="#92400E" style={{ marginRight: 4 }} />
+                    <Text style={styles.shareAdSponsoredPillText}>SPONSORED ADVERTISEMENT</Text>
+                  </View>
+                  <Text style={styles.shareAdBrandText}>SE PAY</Text>
+                </View>
+
+                <View style={styles.shareAdImageWrap}>
+                  <Image
+                    source={{ uri: bannerUrl }}
+                    style={styles.shareAdImage}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <View style={styles.shareAdFooter}>
+                  <Text style={styles.shareAdFooterThank}>
+                    THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
+                  </Text>
+                  <Text style={styles.shareAdFooterPowered}>POWERED BY SE PAY</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* ── SHARE FORMAT SELECTION MODAL CONTENT ── */}
       <Modal
@@ -732,12 +734,14 @@ const styles = StyleSheet.create({
   /* Hidden Offscreen Container for PNG / GIF capture */
   hiddenOffscreenContainer: {
     position: 'absolute',
-    left: -9999,
     top: 0,
+    left: 0,
+    right: 0,
+    zIndex: -1,
     opacity: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 10,
   },
   offscreenCardWrap: {
     alignItems: 'flex-start',

@@ -220,8 +220,8 @@ export default function OtherBusinessProfileScreen() {
             account_number: updated.account_number || trimmedAcc,
             masked_account_number:
               updated.masked_account_number || `•••• •••• ${trimmedAcc.slice(-4)}`,
-            bank_name: trimmedBank || updated.bank_name || 'National Australia Bank',
-            bank_badge: updated.bank_badge || 'NAB',
+            bank_name: trimmedBank || updated.bank_name || '',
+            bank_badge: updated.bank_badge || (trimmedBank ? trimmedBank.slice(0, 4).toUpperCase() : ''),
             submitted_ts: new Date().toISOString().slice(0, 19).replace('T', ' '),
           },
         }));
@@ -868,7 +868,7 @@ export default function OtherBusinessProfileScreen() {
                   <Text style={styles.bankInfoValue}>{bsbNumber || '--'}</Text>
                   <View style={styles.nabBadge}>
                     <Text style={styles.nabBadgeText}>
-                      {bankData?.bank_badge || 'NAB'}
+                      {bankData?.bank_badge || bankData?.bank_name?.slice(0, 4).toUpperCase() || '--'}
                     </Text>
                   </View>
                 </View>

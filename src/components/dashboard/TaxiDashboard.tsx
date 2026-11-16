@@ -13,8 +13,10 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../../constants/colors';
 import HeaderBar from '../common/HeaderBar';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TaxiDashboard() {
+  const { user } = useAuth();
   const { showConfirm, showAlert } = useConfirmModal();
   // Shift & Online state (defaults to Offline & Start Shift)
   const [isOnline, setIsOnline] = useState(false);
@@ -79,15 +81,17 @@ export default function TaxiDashboard() {
 
           {/* Bottom-left row: Avatar + Translucent Text Badge */}
           <View style={styles.bannerBottomRow}>
-            {/* Avatar Logo Box with ET Initials */}
+            {/* Avatar Logo Box with Initials */}
             <View style={styles.avatarBox}>
-              <Text style={styles.avatarInitials}>ET</Text>
+              <Text style={styles.avatarInitials}>
+                {(user.name || user.businessName || 'SE').slice(0, 2).toUpperCase()}
+              </Text>
             </View>
 
             {/* Translucent Text Badge */}
             <View style={styles.bannerTextBadge}>
               <Text style={styles.bannerTitle} numberOfLines={1}>
-                Elite Taxi Service
+                {user.businessName || '--'}
               </Text>
               <Text style={styles.bannerSubtitle} numberOfLines={1}>
                 SHIFT: {isOnline ? 'Active' : 'Start Shift Now!'}
@@ -113,11 +117,11 @@ export default function TaxiDashboard() {
           />
 
           <View style={styles.welcomeCardInner}>
-            <Text style={styles.welcomeTitle}>Welcome, Lovedeep Khangura</Text>
+            <Text style={styles.welcomeTitle}>Welcome, {user.name || '--'}</Text>
 
             <View style={styles.driverInfoRow}>
               <Text style={styles.driverMetaText}>
-                Taxi No.: <Text style={styles.taxiNumberText}>M6061</Text>
+                Taxi No.: <Text style={styles.taxiNumberText}>{user.taxiNumber || '--'}</Text>
               </Text>
               <Text style={styles.dotSeparator}>•</Text>
               <View style={styles.shiftStartWrap}>

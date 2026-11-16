@@ -546,6 +546,7 @@ export default function TapToPayEnterAmountScreen() {
             dropup_location: finalDropupLoc || '',
             pickup_id: finalPickupId !== null ? String(finalPickupId) : '',
             dropup_id: finalDropupId !== null ? String(finalDropupId) : '',
+            shift_session_id: sid ? String(sid) : '',
           },
         });
       } else if (activeMethod === 'tap') {
@@ -559,6 +560,7 @@ export default function TapToPayEnterAmountScreen() {
             dropup_location: finalDropupLoc || '',
             pickup_id: finalPickupId !== null ? String(finalPickupId) : '',
             dropup_id: finalDropupId !== null ? String(finalDropupId) : '',
+            shift_session_id: sid ? String(sid) : '',
           },
         });
       } else {
@@ -701,6 +703,7 @@ export default function TapToPayEnterAmountScreen() {
           dropup_location: finalDropupLoc || '',
           pickup_id: finalPickupId !== null ? String(finalPickupId) : '',
           dropup_id: finalDropupId !== null ? String(finalDropupId) : '',
+          shift_session_id: sid ? String(sid) : '',
         },
       });
     } else if (activeMethod === 'tap') {
@@ -715,6 +718,7 @@ export default function TapToPayEnterAmountScreen() {
           dropup_location: finalDropupLoc || '',
           pickup_id: finalPickupId !== null ? String(finalPickupId) : '',
           dropup_id: finalDropupId !== null ? String(finalDropupId) : '',
+          shift_session_id: sid ? String(sid) : '',
         },
       });
     } else {

@@ -8,11 +8,13 @@ import { appLogger } from '../services/appLogger';
 import {
   createPaymentIntentOnBackend,
   getCachedLocationId,
+  clearStripeCache,
   fetchTerminalConfig,
   retrievePaymentIntentStatus,
   tokenizeCardWithStripe,
   type CreatePaymentIntentResponse,
 } from '../services/stripeApi';
+import { useAuth } from './AuthContext';
 import type { PaymentMethodType, FeeBreakdown } from '../utils/feeCalculator';
 
 interface TerminalContextValue {
@@ -37,6 +39,7 @@ interface TerminalContextValue {
       dropoff?: string | null;
       pickup_location?: string | null;
       dropup_location?: string | null;
+      shift_session_id?: number | string | null;
     }
   ) => Promise<{ success: boolean; paymentIntent?: any; error?: string }>;
   clearError: () => void;
@@ -226,6 +229,7 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dropoff?: string | null;
         pickup_location?: string | null;
         dropup_location?: string | null;
+        shift_session_id?: number | string | null;
       }
     ): Promise<{ success: boolean; paymentIntent?: any; error?: string }> => {
       try {
@@ -398,6 +402,9 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [statusMessage, setStatusMessage] = useState<string>('Ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const { user, isAuthenticated } = useAuth();
+  const currentUserIdRef = useRef<number | string | null>(null);
+
   const discoveredReadersRef = useRef<Reader.Type[]>([]);
   const lastReaderErrorRef = useRef<string>('');
   const isPaymentInFlightRef = useRef(false);
@@ -448,8 +455,32 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
     },
   });
 
+  // Reset Stripe cache and reader connection if user switches or logs out
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      if (currentUserIdRef.current && currentUserIdRef.current !== user.id) {
+        appLogger.info('TERMINAL', `🔄 User switched from ${currentUserIdRef.current} to ${user.id}. Resetting Terminal connection...`);
+        clearStripeCache();
+        if (typeof disconnectReader === 'function') {
+          disconnectReader().catch(() => {});
+        }
+      }
+      currentUserIdRef.current = user.id;
+    } else if (!isAuthenticated) {
+      currentUserIdRef.current = null;
+      clearStripeCache();
+      if (typeof disconnectReader === 'function') {
+        disconnectReader().catch(() => {});
+      }
+    }
+  }, [isAuthenticated, user?.id, disconnectReader]);
+
   useEffect(() => {
     async function init() {
+      if (!isAuthenticated) {
+        appLogger.info('TERMINAL', 'Stripe Terminal initialize deferred: waiting for user authentication.');
+        return;
+      }
       try {
         appLogger.info('TERMINAL', '⚙️ Initializing Stripe Terminal SDK...');
         console.log('⚙️ Initializing Stripe Terminal SDK...');
@@ -469,7 +500,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
     init();
-  }, [initialize]);
+  }, [initialize, isAuthenticated]);
 
   const safeCancelCollectPaymentMethod = useCallback(async () => {
     if (!isCollectingRef.current) {
@@ -791,6 +822,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         dropoff?: string | null;
         pickup_location?: string | null;
         dropup_location?: string | null;
+        shift_session_id?: number | string | null;
       }
     ): Promise<{ success: boolean; paymentIntent?: any; error?: string }> => {
       try {

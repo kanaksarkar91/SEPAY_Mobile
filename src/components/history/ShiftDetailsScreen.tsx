@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import HeaderBar from '../common/HeaderBar';
 import ReceiptShareModal from '../common/ReceiptShareModal';
-import { UnifiedReceiptInput } from '../../services/receiptExportService';
+import { UnifiedReceiptInput, printReceipt } from '../../services/receiptExportService';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { ShiftRecord, ShiftTransaction } from '../../types/shift';
 
@@ -37,30 +37,67 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   const [selectedTxnForShare, setSelectedTxnForShare] = useState<ShiftTransaction | null>(null);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
 
+  const getTxnReceiptInput = useCallback(
+    (txn: ShiftTransaction): UnifiedReceiptInput => {
+      const r = (txn as any)?.receipt;
+      const rawMethod = `${r?.payment_type || ''} ${r?.payment_method || ''} ${(txn as any).payment_method || ''} ${(txn as any).payment_type || ''} ${txn.method || ''}`.toLowerCase();
+      const isCash = rawMethod.includes('cash');
+      const isTap =
+        !isCash &&
+        (rawMethod.includes('tap') ||
+          rawMethod.includes('contactless') ||
+          rawMethod.includes('nfc') ||
+          txn.method === 'tap_and_go' ||
+          (txn as any).payment_method_id === 1);
+
+      const payType = r?.payment_type || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
+      const payMethod = r?.payment_method || (txn as any).payment_method || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
+      const cardBrandVal = r?.card_brand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA');
+
+      const biz = r?.business_name || shift.businessName;
+      const logo = r?.business_logo;
+      const abnVal = r?.abn || '';
+      const phoneVal = r?.phone_no || r?.phone || '';
+      const taxiNo = r?.taxi_number || r?.taxi_no || shift.taxiNumber || '';
+      const dcNo = r?.dc_number || '';
+      const pickupVal = r?.pickup_location || txn.pickup || (txn as any).pickup_location || '';
+      const dropoffVal = r?.drop_location || txn.dropoff || (txn as any).drop_location || '';
+      const amountVal = r?.amount !== undefined ? Number(r.amount) : txn.amount;
+      const amountFmt = r?.amount_formatted || (txn as any).amount_formatted || `$${Number(amountVal).toFixed(2)}`;
+      const dtVal = r?.date_time || `${txn.date} ${txn.time}`;
+      const payId = r?.payment_id || (txn as any).transaction_id || txn.id || '--';
+
+      return {
+        businessName: biz,
+        businessLogo: logo,
+        abn: abnVal,
+        phone: phoneVal,
+        amount: amountVal,
+        amountFormatted: amountFmt,
+        dateTime: dtVal,
+        paymentMethod: payMethod,
+        paymentType: payType,
+        cardBrand: cardBrandVal,
+        paymentId: payId,
+        isTaxi: true,
+        taxiNumber: taxiNo,
+        dcNumber: dcNo,
+        pickup: pickupVal,
+        dropoff: dropoffVal,
+        staffName: shift.driverName,
+        staffEmpId: (shift as any).user?.code || (shift as any).user?.taxi_no || '',
+        hasAdBanner: Boolean(r?.ad_banner && r?.banner_image_url),
+        bannerImageUrl: r?.banner_image_url,
+        breakdown: r?.payment_break_down,
+      };
+    },
+    [shift]
+  );
+
   const selectedShareReceiptInput = useMemo((): UnifiedReceiptInput | null => {
     if (!selectedTxnForShare) return null;
-    const methodStr = `${selectedTxnForShare.method || ''} ${(selectedTxnForShare as any).payment_method || ''} ${(selectedTxnForShare as any).payment_type || ''}`.toLowerCase();
-    const isTap = methodStr.includes('tap') || methodStr.includes('nfc') || selectedTxnForShare.method === 'tap_and_go';
-
-    return {
-      businessName: shift.businessName,
-      abn: '',
-      phone: '',
-      amount: selectedTxnForShare.amount,
-      amountFormatted: `$${selectedTxnForShare.amount.toFixed(2)}`,
-      dateTime: `${selectedTxnForShare.date} ${selectedTxnForShare.time}`,
-      paymentMethod: (selectedTxnForShare as any).payment_method || (isTap ? 'Tap & Go' : 'Card'),
-      paymentType: (selectedTxnForShare as any).payment_type || (isTap ? 'Tap & Go' : 'Card'),
-      cardBrand: isTap ? 'TAP & GO' : 'VISA',
-      paymentId: selectedTxnForShare.id,
-      isTaxi: true,
-      taxiNumber: shift.taxiNumber,
-      dcNumber: '',
-      pickup: selectedTxnForShare.pickup,
-      dropoff: selectedTxnForShare.dropoff,
-      staffName: shift.driverName,
-    };
-  }, [selectedTxnForShare, shift]);
+    return getTxnReceiptInput(selectedTxnForShare);
+  }, [selectedTxnForShare, getTxnReceiptInput]);
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -282,23 +319,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   // Single trip reprint
   const handleReprintTrip = async (txn: ShiftTransaction) => {
     try {
-      await Print.printAsync({
-        html: `
-          <html>
-            <body style="font-family: sans-serif; padding: 20px; text-align: center;">
-              <h2>${shift.businessName}</h2>
-              <p>Taxi: ${shift.taxiNumber} | Driver: ${shift.driverName}</p>
-              <hr/>
-              <p><b>${txn.id}</b> - ${txn.time}</p>
-              <p>${txn.pickup} &rarr; ${txn.dropoff}</p>
-              <p style="font-size: 24px; font-weight: bold;">$${txn.amount.toFixed(2)}</p>
-              <p>${txn.verification}</p>
-              <hr/>
-              <p>SE PAY VERIFIED TRANSACTION</p>
-            </body>
-          </html>
-        `,
-      });
+      await printReceipt(getTxnReceiptInput(txn));
     } catch (error) {
       console.warn('Print trip error:', error);
     }

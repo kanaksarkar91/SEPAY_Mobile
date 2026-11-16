@@ -64,12 +64,12 @@ export default function TransactionsTabScreen() {
     );
   }
 
-  // Role 5: Other Business Employee (Liam Hemsworth) - Dedicated Employee Shift History
+  // Role 5: Other Business Employee - Dedicated Employee Shift History
   if (user.loginType === 'other_business_employee') {
     return (
       <OtherBusinessEmployeeHistoryScreen
         userName={user.name}
-        empId={user.empId || '93822048'}
+        empId={user.empId || ''}
         onSelectShift={handleSelectShift}
       />
     );
@@ -93,7 +93,7 @@ export default function TransactionsTabScreen() {
     return (
       <TaxiDriverHistoryScreen
         onSelectShift={handleSelectShift}
-        taxiNumber={user.taxiNumber || 'M6022'}
+        taxiNumber={user.taxiNumber || ''}
       />
     );
   }
@@ -103,7 +103,7 @@ export default function TransactionsTabScreen() {
     return (
       <TaxiOwnerHistoryScreen
         onSelectShift={handleSelectShift}
-        taxiNumber={user.taxiNumber || 'M6022'}
+        taxiNumber={user.taxiNumber || ''}
       />
     );
   }

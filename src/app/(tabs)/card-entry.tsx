@@ -34,6 +34,7 @@ export default function CardEntryScreen() {
     pickup_id?: string;
     dropup_id?: string;
     dropoff_id?: string;
+    shift_session_id?: string;
   }>();
 
   // Guard: Strictly verify that user has permission for Card payments
@@ -195,6 +196,7 @@ export default function CardEntryScreen() {
         dropup_location: params.dropup_location || '',
         pickup_id: params.pickup_id || '',
         dropup_id: params.dropup_id || '',
+        shift_session_id: params.shift_session_id || '',
         payment_attempt_id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       },
     });

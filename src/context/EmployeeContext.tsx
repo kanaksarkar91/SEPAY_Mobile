@@ -13,52 +13,7 @@ export interface Employee {
   avatarLocal?: any;
 }
 
-const INITIAL_EMPLOYEES: Employee[] = [
-  {
-    id: 'emp_01',
-    firstName: 'Soumen',
-    lastName: 'Sen',
-    name: 'Soumen Sen',
-    empId: '93821048',
-    phone: '0400 555 320',
-    email: 'soumen@crowncuts.com.au',
-    status: 'active',
-    avatarLocal: require('../../assets/emp_avatar_1.png'),
-  },
-  {
-    id: 'emp_02',
-    firstName: 'Liam',
-    lastName: 'Hemsworth',
-    name: 'Liam Hemsworth',
-    empId: '93822048',
-    phone: '0400 555 321',
-    email: 'liam@crowncuts.com.au',
-    status: 'active',
-    avatarLocal: require('../../assets/emp_avatar_2.png'),
-  },
-  {
-    id: 'emp_03',
-    firstName: 'Sarah',
-    lastName: 'Jenkins',
-    name: 'Sarah Jenkins',
-    empId: '93824048',
-    phone: '0400 555 322',
-    email: 'sarah@crowncuts.com.au',
-    status: 'inactive',
-    avatarLocal: require('../../assets/emp_avatar_3.png'),
-  },
-  {
-    id: 'emp_04',
-    firstName: 'Jack',
-    lastName: 'Robinson',
-    name: 'Jack Robinson',
-    empId: '93823048',
-    phone: '0400 555 323',
-    email: 'jack@crowncuts.com.au',
-    status: 'active',
-    avatarLocal: require('../../assets/emp_avatar_4.png'),
-  },
-];
+const INITIAL_EMPLOYEES: Employee[] = [];
 
 interface EmployeeContextType {
   employees: Employee[];

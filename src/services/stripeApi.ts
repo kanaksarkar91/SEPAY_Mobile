@@ -1,6 +1,7 @@
 import { config } from '../constants/config';
 import { apiClient } from './apiClient';
 import { appLogger } from './appLogger';
+import { tokenStorage } from './tokenStorage';
 import type { PaymentMethodType } from '../utils/feeCalculator';
 
 export interface CreatePaymentIntentResponse {
@@ -38,6 +39,13 @@ export function clearStripeCache(): void {
  * Live endpoint: POST /api/connection_token (requires Bearer token)
  */
 export async function fetchConnectionToken(): Promise<string> {
+  const token = tokenStorage.getAccessToken();
+  if (!token) {
+    const authErr = 'User is not authenticated. Connection token fetch skipped to prevent account mismatch.';
+    appLogger.warn('STRIPE_API', authErr);
+    throw new Error(authErr);
+  }
+
   try {
     appLogger.info('STRIPE_API', 'Requesting connection token from backend...');
     let data: any;
@@ -195,6 +203,7 @@ export async function createPaymentIntentOnBackend(
     dropoff?: string | null;
     pickup_location?: string | null;
     dropup_location?: string | null;
+    shift_session_id?: number | string | null;
   }
 ): Promise<CreatePaymentIntentResponse> {
   const formattedCard = card
@@ -213,6 +222,10 @@ export async function createPaymentIntentOnBackend(
     paymentMethodId,
     card: formattedCard,
   };
+
+  if (routeDetails?.shift_session_id !== undefined && routeDetails?.shift_session_id !== null && routeDetails?.shift_session_id !== '') {
+    payload.shift_session_id = Number(routeDetails.shift_session_id) || routeDetails.shift_session_id;
+  }
 
   if (routeDetails) {
     if (routeDetails.service_charges !== undefined && routeDetails.service_charges !== null) {

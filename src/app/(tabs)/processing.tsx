@@ -43,6 +43,7 @@ export default function ProcessingScreen() {
     dropup_id?: string;
     dropoff_id?: string;
     payment_attempt_id?: string;
+    shift_session_id?: string;
   }>();
 
   const { runSimulatedPayment, statusMessage, errorMessage, resetPaymentState } = useTerminal();
@@ -97,6 +98,7 @@ export default function ProcessingScreen() {
     pickup_id: params.pickup_id || '',
     dropup_id: params.dropup_id || params.dropoff_id || '',
     dropoff_id: params.dropup_id || params.dropoff_id || '',
+    shift_session_id: params.shift_session_id || '',
     runSimulatedPayment,
     router,
   });
@@ -115,6 +117,7 @@ export default function ProcessingScreen() {
       pickup_id: params.pickup_id || '',
       dropup_id: params.dropup_id || params.dropoff_id || '',
       dropoff_id: params.dropup_id || params.dropoff_id || '',
+      shift_session_id: params.shift_session_id || '',
       runSimulatedPayment,
       router,
     };
@@ -166,6 +169,7 @@ export default function ProcessingScreen() {
         dropup_location: dropLoc,
         pickup_id: pId,
         dropup_id: dId,
+        shift_session_id: sId,
         runSimulatedPayment: executePayment,
         router: navRouter,
       } = paymentStateRef.current;
@@ -178,6 +182,7 @@ export default function ProcessingScreen() {
           dropup_id: dId ? (Number(dId) || dId) : null,
           pickup_location: pickLoc || null,
           dropup_location: dropLoc || null,
+          shift_session_id: sId || null,
         });
 
         if (result.success && result.paymentIntent) {

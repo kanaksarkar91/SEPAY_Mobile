@@ -1,19 +1,16 @@
 import React from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import ShiftDetailsScreen from '../../components/history/ShiftDetailsScreen';
-import { MOCK_SHIFTS } from '../../data/mockShifts';
+import { OtherBusinessShiftDetailsScreen } from '../../components/other-business/owner';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TabShiftDetailsRoute() {
   const router = useRouter();
   const params = useLocalSearchParams<{ shiftId?: string }>();
-
-  const shift =
-    (params.shiftId && MOCK_SHIFTS.find((s) => s.id === params.shiftId)) ||
-    MOCK_SHIFTS[0];
+  const { user } = useAuth();
 
   return (
-    <ShiftDetailsScreen
-      shift={shift}
+    <OtherBusinessShiftDetailsScreen
+      shiftId={params.shiftId || ''}
       onBack={() => {
         if (router.canGoBack()) {
           router.back();
@@ -21,6 +18,8 @@ export default function TabShiftDetailsRoute() {
           router.replace('/(tabs)/transactions');
         }
       }}
+      businessName={user.businessName}
+      userName={user.name}
     />
   );
 }

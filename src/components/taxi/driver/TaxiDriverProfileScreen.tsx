@@ -456,7 +456,7 @@ export default function TaxiDriverProfileScreen() {
             masked_account_number:
               updated.masked_account_number || `••••  ••••  ${trimmedAcc.slice(-4)}`,
             bank_name: trimmedBank,
-            bank_badge: updated.bank_badge || prev?.bank_badge || 'NAB',
+            bank_badge: updated.bank_badge || prev?.bank_badge || (trimmedBank ? trimmedBank.slice(0, 4).toUpperCase() : ''),
             submitted_ts: new Date().toISOString().replace('T', ' ').substring(0, 19),
           },
         }));

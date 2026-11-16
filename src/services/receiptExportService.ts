@@ -67,13 +67,15 @@ export function getExportFilename(prefix: string, bizName: string, ext: string):
   return `${prefix}_${sanitize(bizName || 'SE_PAY')}_${Date.now()}.${ext}`;
 }
 
-export function formatReceiptAmount(amount: number | string): {
+export function formatReceiptAmount(amount: number | string | null | undefined): {
   numeric: number;
   whole: string;
   cents: string;
   formatted: string;
 } {
-  const numeric = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
+  const raw = amount !== null && amount !== undefined ? amount : 0;
+  const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw));
+  const numeric = isNaN(parsed) ? 0 : parsed;
   const whole = Math.floor(numeric).toLocaleString('en-US');
   const cents = ((numeric % 1) * 100).toFixed(0).padStart(2, '0');
   const formatted = `$${whole}.${cents}`;

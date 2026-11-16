@@ -40,6 +40,8 @@ export interface BackendUserData {
   phone?: string;
   dob?: string | null;
   abn?: string;
+  taxi_no?: string;
+  taxi_number?: string;
   dc_number?: string;
   dl_number?: string;
   address?: BackendAddress;
@@ -181,14 +183,14 @@ export const authService = {
           : loginType === 'taxi_business'
           ? 'Taxi Fleet Business'
           : loginType === 'taxi_business_driver'
-          ? 'Taxi Business Driver'
-          : loginType === 'other_business_employee'
-          ? 'Business Employee'
-          : 'Merchant Owner',
-      businessName: u.business_name || 'Taxi Service',
+            ? 'Taxi Business Driver'
+            : loginType === 'other_business_employee'
+              ? 'Business Employee'
+              : 'Merchant Owner',
+      businessName: u.business_name || '',
       businessAddress: formattedAddress,
-      taxiNumber: u.dc_number || undefined,
-      empId: u.employee_code || undefined,
+      taxiNumber: u.taxi_no || u.taxi_number || u.dc_number || undefined,
+      empId: u.employee_code || (u as any).code || (u as any).emp_id || undefined,
       sessionStartTime: '',
       abn: u.abn || undefined,
       phone: u.phone_no || u.phone || undefined,

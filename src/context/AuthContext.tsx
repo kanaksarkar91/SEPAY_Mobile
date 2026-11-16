@@ -28,89 +28,21 @@ export interface UserProfile {
   bannerImageUrl?: string | null;
 }
 
-export const MOCK_ACCOUNTS: Record<
-  LoginType,
-  { username: string; passwords: string[]; user: UserProfile }
-> = {
-  taxi_owner: {
-    username: 'DC750001',
-    passwords: ['Zafar@1986', 'owner123', '123456'],
-    user: {
-      id: '5',
-      username: 'DC750001',
-      name: 'Zafar Ansari',
-      loginType: 'taxi_owner',
-      roleLabel: 'Taxi Owner',
-      businessName: 'Zafar Taxi Company',
-      taxiNumber: 'EMP2026100720200630',
-      empId: 'EMP2026100720200630',
-      sessionStartTime: '',
-    },
-  },
-  taxi_business: {
-    username: 'zafar.dnk3@gmail.com',
-    passwords: ['Zafar@1986', 'fleet123', '123456'],
-    user: {
-      id: '3',
-      username: 'zafar.dnk3@gmail.com',
-      name: 'Elite Taxi Service',
-      loginType: 'taxi_business',
-      roleLabel: 'Taxi Company (Taxi)',
-      businessName: 'Elite Taxi Service',
-      taxiNumber: 'EMP2026100720013735',
-      empId: 'EMP2026100720013735',
-      sessionStartTime: '',
-    },
-  },
-  taxi_business_driver: {
-    username: 'zafar.dnk5@gmail.com',
-    passwords: ['Zafar@1986', 'driver123', '123456'],
-    user: {
-      id: 'EMP2026100720200245',
-      username: 'zafar.dnk5@gmail.com',
-      name: 'Zafar Driver',
-      loginType: 'taxi_business_driver',
-      roleLabel: 'Taxi Business Driver',
-      businessName: 'Elite Taxi Service',
-      taxiNumber: 'DC750030',
-      empId: 'EMP2026100720200245',
-      sessionStartTime: '',
-    },
-  },
-  other_business: {
-    username: 'zafar.dnk4@gmail.com',
-    passwords: ['Zafar@1986', 'business123', '123456'],
-    user: {
-      id: '4',
-      username: 'zafar.dnk4@gmail.com',
-      name: 'Habibs',
-      loginType: 'other_business',
-      roleLabel: 'Other Business (Company)',
-      businessName: 'Habibs',
-      businessAddress: '19 WORONORA AVE, LEUMEAH, NSW 2560',
-      empId: 'EMP2026100720101831',
-      sessionStartTime: '',
-      abn: '50110219475',
-      phone: '9932783473',
-    },
-  },
-  other_business_employee: {
-    username: 'zafar.dnk9@gmail.com',
-    passwords: ['Zafar@1986', 'staff123', '123456'],
-    user: {
-      id: 'EMP2026100720101878',
-      username: 'zafar.dnk9@gmail.com',
-      name: 'Habibs Employee',
-      loginType: 'other_business_employee',
-      roleLabel: 'Business Employee',
-      businessName: 'Habibs',
-      businessAddress: '19 WORONORA AVE, LEUMEAH, NSW 2560',
-      sessionStartTime: '',
-      empId: 'EMP2026100720101878',
-      abn: '50110219475',
-      phone: '9932783473',
-    },
-  },
+export const EMPTY_USER: UserProfile = {
+  id: '',
+  username: '',
+  name: '',
+  loginType: 'other_business',
+  roleLabel: '',
+  businessName: '',
+  businessAddress: '',
+  taxiNumber: '',
+  empId: '',
+  sessionStartTime: '',
+  abn: '',
+  phone: '',
+  logoUrl: null,
+  bannerImageUrl: null,
 };
 
 interface AuthContextType {
@@ -119,14 +51,13 @@ interface AuthContextType {
   isInitializing: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  quickLogin: (type: LoginType) => void;
   updateUserProfile: (partial: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile>(MOCK_ACCOUNTS.other_business.user);
+  const [user, setUser] = useState<UserProfile>(EMPTY_USER);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
@@ -170,18 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { user: storedUser, accessToken } = await tokenStorage.loadStoredSession();
         if (storedUser && accessToken) {
-          const isOtherBiz =
-            storedUser.loginType === 'other_business' ||
-            storedUser.loginType === 'other_business_employee';
-          const userWithDefaults: UserProfile = {
-            ...storedUser,
-            abn: storedUser.abn || (isOtherBiz ? '-' : undefined),
-            phone: storedUser.phone || (isOtherBiz ? '-' : undefined),
-          };
-          setUser(userWithDefaults);
+          setUser(storedUser);
           setIsAuthenticated(true);
           console.log('🔐 [AuthContext] Restored encrypted user session:', storedUser.name);
-          dashboardService.getDashboard().catch(() => { });
+          dashboardService.getDashboard().catch(() => {});
         }
       } catch (err) {
         console.warn('⚠️ [AuthContext] Could not restore session from storage:', err);
@@ -213,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(liveUser);
       setIsAuthenticated(true);
       await tokenStorage.saveUser(liveUser);
-      dashboardService.getDashboard().catch(() => { });
+      dashboardService.getDashboard().catch(() => {});
       return { success: true };
     } catch (apiErr: any) {
       console.log('Live login attempt failed:', apiErr.message || apiErr);
@@ -234,15 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     setIsAuthenticated(false);
-    setUser(MOCK_ACCOUNTS.other_business.user);
+    setUser(EMPTY_USER);
     await authService.logout();
-  };
-
-  const quickLogin = (type: LoginType) => {
-    const selectedUser = MOCK_ACCOUNTS[type].user;
-    setUser(selectedUser);
-    setIsAuthenticated(true);
-    tokenStorage.saveUser(selectedUser);
   };
 
   return (
@@ -253,7 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isInitializing,
         login,
         logout,
-        quickLogin,
         updateUserProfile,
       }}
     >

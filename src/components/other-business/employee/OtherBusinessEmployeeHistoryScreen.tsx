@@ -45,7 +45,7 @@ interface OtherBusinessEmployeeHistoryScreenProps {
 }
 
 export default function OtherBusinessEmployeeHistoryScreen({
-  empId = 'EMP2026100720101878',
+  empId = '',
   onSelectShift,
 }: OtherBusinessEmployeeHistoryScreenProps) {
   const PAGE_LIMIT = 10;

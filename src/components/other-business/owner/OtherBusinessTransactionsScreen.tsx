@@ -42,24 +42,7 @@ export interface BusinessEmployeeItem {
   isOnline: boolean;
 }
 
-export const DEFAULT_BUSINESS_EMPLOYEES: BusinessEmployeeItem[] = [
-  {
-    id: '12',
-    name: 'Ramesh Poddar',
-    empId: 'EMP2026100720101878',
-    avatar: require('../../../../assets/emp_avatar_1.png'),
-    role: 'Staff Member',
-    isOnline: true,
-  },
-  {
-    id: '19',
-    name: 'Ashoke Malakar',
-    empId: 'EMP321045',
-    avatar: require('../../../../assets/emp_avatar_2.png'),
-    role: 'Senior Staff',
-    isOnline: false,
-  },
-];
+
 
 export interface OtherBusinessShiftTxn {
   id: string;

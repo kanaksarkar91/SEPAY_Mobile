@@ -62,29 +62,7 @@ export default function LoginScreen() {
     }
   };
 
-  const handleQuickCredentialLogin = async (
-    userVal: string,
-    passVal: string
-  ) => {
-    setUsername(userVal);
-    setPassword(passVal);
-    setErrorMessage('');
-    setIsLoading(true);
 
-    try {
-      const result = await login(userVal, passVal);
-      if (result.success) {
-        setErrorMessage('');
-        router.replace('/(tabs)');
-      } else {
-        setErrorMessage(result.error || 'Login failed. Please check credentials.');
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Login failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -245,63 +223,6 @@ export default function LoginScreen() {
             {/* Version Text */}
             <View style={styles.versionWrap}>
               <Text style={styles.versionText}>{APP_CONFIG.displayVersion}</Text>
-            </View>
-
-            {/* Quick Test Accounts Section for 5 User Types */}
-            <View style={styles.testSectionWrap}>
-              <Text style={styles.testSectionTitle}>Quick Role Switch (1-Tap Login)</Text>
-              <View style={styles.testButtonsRow}>
-                <TouchableOpacity
-                  style={styles.testChip}
-                  activeOpacity={0.75}
-                  onPress={() =>
-                    handleQuickCredentialLogin('DC750001', 'Zafar@1986')
-                  }
-                >
-                  <Text style={styles.testChipText}>🚕 Taxi Owner</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.testChip}
-                  activeOpacity={0.75}
-                  onPress={() =>
-                    handleQuickCredentialLogin('ckryoaction1@gmail.com'
-                      , 'Soumen@123')
-                  }
-                >
-                  <Text style={styles.testChipText}>🏢 Taxi Company</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.testChip}
-                  activeOpacity={0.75}
-                  onPress={() =>
-                    handleQuickCredentialLogin('ckryoaction1+1@gmail.com', 'U9Ger?*@?w')
-                  }
-                >
-                  <Text style={styles.testChipText}>🚖 Driver</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.testChip}
-                  activeOpacity={0.75}
-                  onPress={() =>
-                    handleQuickCredentialLogin('palash.sarkar3@gmail.com', 'Palash@123')
-                  }
-                >
-                  <Text style={styles.testChipText}>💈 Other Business</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.testChip}
-                  activeOpacity={0.75}
-                  onPress={() =>
-                    handleQuickCredentialLogin('⁠aman@g.com', 'Palash@123')
-                  }
-                >
-                  <Text style={styles.testChipText}>✂️ Employee</Text>
-                </TouchableOpacity>
-              </View>
             </View>
 
 

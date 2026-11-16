@@ -33,7 +33,7 @@ type ShiftFilterType = 'all' | 'paid' | 'unpaid';
 
 export default function TaxiOwnerHistoryScreen({
   onSelectShift,
-  taxiNumber = 'M6022',
+  taxiNumber = '',
 }: TaxiOwnerHistoryScreenProps) {
   const PAGE_LIMIT = 10;
 
