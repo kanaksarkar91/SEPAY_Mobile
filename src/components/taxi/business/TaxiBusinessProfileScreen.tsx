@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../context/AuthContext';
 import HeaderBar from '../../common/HeaderBar';
@@ -796,6 +796,16 @@ export default function TaxiBusinessProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ── BLUETOOTH THERMAL PRINTER BUTTON ── */}
+        <TouchableOpacity
+          style={styles.diagLogsButton}
+          onPress={() => router.push('/printer-settings')}
+          activeOpacity={0.8}
+        >
+          <Feather name="printer" size={16} color="#0F172A" style={{ marginRight: 8 }} />
+          <Text style={styles.diagLogsButtonText}>Bluetooth Thermal Printer</Text>
+        </TouchableOpacity>
 
         {/* ── DIAGNOSTIC LOGS BUTTON ── */}
         <TouchableOpacity

@@ -12,12 +12,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { captureRef } from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { animatedGifService } from '../../services/animatedGifService';
+import { printerService } from '../../services/printerService';
 import {
   UnifiedReceiptInput,
   formatReceiptAmount,
@@ -38,14 +40,16 @@ export default function ReceiptShareModal({
   onClose,
   receiptInput,
 }: ReceiptShareModalProps) {
-  const { showAlert } = useConfirmModal();
+  const router = useRouter();
+  const { showAlert, showConfirm } = useConfirmModal();
   const [isSharing, setIsSharing] = useState(false);
-  const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | null>(null);
+  const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | 'thermal' | null>(null);
 
   const sharingLabels: Record<string, string> = {
     photo: 'Generating Image…',
     gif: 'Creating Animated Card…',
     pdf: 'Preparing PDF…',
+    thermal: 'Printing Receipt…',
   };
 
   const receiptCardRef = useRef<View>(null);
@@ -88,6 +92,72 @@ export default function ReceiptShareModal({
 
   const hasAd = Boolean(receiptInput.hasAdBanner && receiptInput.bannerImageUrl);
   const bannerUrl = normalizeImageUrl(receiptInput.bannerImageUrl);
+
+  // 0. Print via 58mm Bluetooth Thermal Printer
+  const handlePrintThermalReceipt = async () => {
+    try {
+      setIsSharing(true);
+      setSharingFormat('thermal');
+
+      if (!receiptCardRef.current) {
+        throw new Error('Receipt view is not ready');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const capturePromise = captureRef(receiptCardRef, {
+        format: 'png',
+        quality: 1.0,
+        result: 'base64',
+        width: 384,
+      });
+      const timeoutPromise = new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('Receipt image capture timed out')), 10000)
+      );
+      const base64Png = await Promise.race([capturePromise, timeoutPromise]);
+
+      const res = await printerService.printReceiptImage(base64Png, 3);
+      if (!res.success) {
+        if (res.error?.includes('Printer Settings')) {
+          showConfirm({
+            title: 'Printer Not Connected',
+            message: 'No thermal printer is connected. Would you like to configure your printer in Printer Settings?',
+            type: 'warning',
+            confirmText: 'Open Settings',
+            cancelText: 'Cancel',
+            onConfirm: () => {
+              onClose();
+              router.push('/printer-settings');
+            },
+          });
+        } else {
+          showAlert({
+            title: 'Printer Notice',
+            message: res.error || 'Failed to print receipt. Please check printer power and paper.',
+            type: 'warning',
+          });
+        }
+        return;
+      }
+
+      showAlert({
+        title: 'Receipt Printed',
+        message: 'Receipt sent successfully to thermal printer!',
+        type: 'success',
+      });
+      onClose();
+    } catch (error: any) {
+      console.error('Error printing thermal receipt:', error);
+      showAlert({
+        title: 'Print Error',
+        message: error?.message || 'Unable to print receipt. Please try again.',
+        type: 'danger',
+      });
+    } finally {
+      setIsSharing(false);
+      setSharingFormat(null);
+    }
+  };
 
   // 1. Share as Image (PNG)
   const handleSharePhoto = async () => {
@@ -631,6 +701,32 @@ export default function ReceiptShareModal({
                     </TouchableOpacity>
                   )}
                 </View>
+
+                {/* Option 0: Thermal Bluetooth Printer */}
+                <TouchableOpacity
+                  style={[
+                    styles.modalOptionCard,
+                    isSharing && sharingFormat === 'thermal' && styles.modalOptionCardActive,
+                    isSharing && sharingFormat !== 'thermal' && styles.modalOptionCardDisabled,
+                  ]}
+                  activeOpacity={0.75}
+                  onPress={handlePrintThermalReceipt}
+                  disabled={isSharing}
+                >
+                  <View style={[styles.modalOptionIconBox, { backgroundColor: '#F1F5F9' }]}>
+                    <Feather name="printer" size={22} color="#0F172A" />
+                  </View>
+                  <View style={styles.modalOptionTextWrap}>
+                    <View style={styles.modalOptionTitleRow}>
+                      <Text style={styles.modalOptionTitle}>Print Receipt (Thermal Printer)</Text>
+                    </View>
+                  </View>
+                  {isSharing && sharingFormat === 'thermal' ? (
+                    <ActivityIndicator size="small" color="#0F172A" />
+                  ) : (
+                    <Feather name="chevron-right" size={18} color="#94A3B8" />
+                  )}
+                </TouchableOpacity>
 
                 {/* Option 1: Share as Image (PNG) */}
                 <TouchableOpacity

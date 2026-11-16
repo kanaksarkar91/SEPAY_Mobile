@@ -704,6 +704,16 @@ export default function OtherBusinessProfileScreen() {
           ))}
         </View>
 
+        {/* ── BLUETOOTH THERMAL PRINTER BUTTON ── */}
+        <TouchableOpacity
+          style={styles.diagLogsButton}
+          onPress={() => router.push('/printer-settings')}
+          activeOpacity={0.8}
+        >
+          <Feather name="printer" size={16} color="#0F172A" style={{ marginRight: 8 }} />
+          <Text style={styles.diagLogsButtonText}>Bluetooth Thermal Printer</Text>
+        </TouchableOpacity>
+
         {/* ── DIAGNOSTIC LOGS BUTTON ── */}
         <TouchableOpacity
           style={styles.diagLogsButton}
