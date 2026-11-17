@@ -36,6 +36,7 @@ export interface BackendUserData {
   id: number | string;
   role_id?: number;
   user_type_key?: string;
+  is_taxi_service?: boolean;
   business_type?: string;
   driver_type?: string;
   parent_id?: number | null;
@@ -126,10 +127,34 @@ export interface LogoutResponse {
 }
 
 /**
- * Maps stage backend user_type_key to the app's supported LoginType
+ * Returns user-facing display label for a given LoginType
  */
-export function mapBackendUserType(userTypeKey?: string): LoginType {
-  switch (userTypeKey) {
+export function getRoleLabel(loginType: LoginType): string {
+  switch (loginType) {
+    case 'taxi_owner':
+      return 'Taxi Owner';
+    case 'taxi_business':
+      return 'Taxi Fleet Business';
+    case 'taxi_business_driver':
+      return 'Taxi Business Driver';
+    case 'other_business_employee':
+      return 'Business Employee';
+    case 'other_business':
+      return 'Merchant Owner';
+    default:
+      return '';
+  }
+}
+
+/**
+ * Maps stage backend user_type_key strictly to the app's supported LoginType.
+ * ONLY uses user_type_key to identify role from backend and API responses.
+ * Returns empty primitive '' if unrecognized or absent.
+ */
+export function mapBackendUserType(userTypeKey?: string | null): LoginType {
+  const normalizedKey = (userTypeKey || '').trim().toLowerCase();
+
+  switch (normalizedKey) {
     case 'taxi_owner':
       return 'taxi_owner';
     case 'taxi_business':
@@ -141,8 +166,9 @@ export function mapBackendUserType(userTypeKey?: string): LoginType {
     case 'business_employee':
       return 'other_business_employee';
     case 'other_business':
-    default:
       return 'other_business';
+    default:
+      return '';
   }
 }
 
@@ -166,7 +192,9 @@ export const authService = {
     }
 
     const u = resData.user;
-    const loginType = mapBackendUserType(resData.userTypeKey || u.user_type_key);
+    const isTaxiService = (u as any).is_taxi_service ?? undefined;
+    const rawUserTypeKey = resData.userTypeKey || u.user_type_key;
+    const loginType = mapBackendUserType(rawUserTypeKey);
 
     // Format address string
     let formattedAddress: string | undefined;
@@ -186,29 +214,33 @@ export const authService = {
       id: String(u.id),
       username: payload.username,
       name: u.full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || payload.username,
+      userTypeKey: rawUserTypeKey || undefined,
       loginType,
-      roleLabel:
-        loginType === 'taxi_owner'
-          ? 'Taxi Owner'
-          : loginType === 'taxi_business'
-          ? 'Taxi Fleet Business'
-          : loginType === 'taxi_business_driver'
-            ? 'Taxi Business Driver'
-            : loginType === 'other_business_employee'
-              ? 'Business Employee'
-              : 'Merchant Owner',
-      businessName: u.business_name || '',
+      roleLabel: getRoleLabel(loginType),
+      businessName:
+        (u as any).header_business_name ||
+        u.business_name ||
+        (u as any).parent_business?.business_name ||
+        '',
       businessAddress: formattedAddress,
       taxiNumber: u.taxi_no || u.taxi_number || u.dc_number || undefined,
       empId: u.employee_code || (u as any).code || (u as any).emp_id || undefined,
       sessionStartTime: '',
-      abn: u.abn || undefined,
-      phone: u.phone_no || u.phone || undefined,
-      logoUrl: u.logo_url || null,
+      abn: u.abn || (u as any).parent_business?.abn || undefined,
+      phone: u.phone_no || u.phone || (u as any).parent_business?.phone_no || undefined,
+      logoUrl: u.logo_url || (u as any).parent_business?.logo_url || null,
+      bannerImageUrl: (u as any).banner_image_url || null,
+      isTaxiService,
+      roleId: u.role_id,
     };
 
     // Save user profile to encrypted storage
     await tokenStorage.saveUser(profile);
+
+    // Save allowed payment methods if returned on login
+    if ((resData as any).allowed_payment_methods) {
+      await tokenStorage.saveAllowedPaymentMethods((resData as any).allowed_payment_methods);
+    }
 
     return profile;
   },

@@ -152,6 +152,7 @@ export const tokenStorage = {
   clearSession: async (): Promise<void> => {
     cachedAccessToken = null;
     cachedRefreshToken = null;
+    cachedUser = null;
     cachedAllowedPaymentMethods = null;
 
     try {

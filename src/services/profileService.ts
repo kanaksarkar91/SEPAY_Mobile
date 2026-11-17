@@ -1,4 +1,7 @@
 import { apiClient } from './apiClient';
+import { tokenStorage } from './tokenStorage';
+import { mapBackendUserType, getRoleLabel } from './authService';
+import type { UserProfile } from '../context/AuthContext';
 
 export interface ProfileAddress {
   formatted?: string;
@@ -155,6 +158,40 @@ export const profileService = {
    */
   getProfile: async (): Promise<ProfileResponseData> => {
     const response = await apiClient.get<ProfileApiResponse>('/api/user/profile');
+    const u = response.data?.data?.user;
+
+    if (u) {
+      tokenStorage
+        .loadStoredSession()
+        .then(({ user }) => {
+          if (user) {
+            const detectedLoginType = u.user_type_key
+              ? mapBackendUserType(u.user_type_key)
+              : user.loginType;
+
+            const updated: UserProfile = {
+              ...user,
+              userTypeKey: u.user_type_key || user.userTypeKey,
+              loginType: detectedLoginType,
+              roleLabel: getRoleLabel(detectedLoginType) || user.roleLabel,
+              isTaxiService: u.is_taxi_service ?? user.isTaxiService,
+              roleId: u.role_id ? Number(u.role_id) : user.roleId,
+              name:
+                u.display_name ||
+                (u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : user.name),
+              businessName: u.header_business_name || u.business_name || user.businessName,
+              taxiNumber: u.taxi_no || user.taxiNumber,
+              empId: u.employee_code || u.emp_id || user.empId,
+              logoUrl: u.logo_url !== undefined ? u.logo_url : user.logoUrl,
+              abn: u.abn || user.abn,
+              phone: u.phone_no || user.phone,
+            };
+            tokenStorage.saveUser(updated);
+          }
+        })
+        .catch(() => {});
+    }
+
     return response.data.data;
   },
 

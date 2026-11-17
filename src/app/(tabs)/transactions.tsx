@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
-import { BackHandler } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { BackHandler, View, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { mapBackendUserType } from '../../services/authService';
+import { getCachedDashboardData } from '../../services/dashboardService';
 import {
   TaxiBusinessHistoryScreen,
   TaxiDriverHistoryScreen,
@@ -18,6 +20,15 @@ export default function TransactionsTabScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ shiftId?: string; empId?: string; driverId?: string }>();
   const { user } = useAuth();
+  const cachedDash = getCachedDashboardData();
+
+  // Role resolution strictly using user_type_key from dashboard response or user session
+  const effectiveLoginType = useMemo(() => {
+    if (cachedDash?.user_type_key) {
+      return mapBackendUserType(cachedDash.user_type_key);
+    }
+    return user.loginType;
+  }, [user.loginType, cachedDash?.user_type_key]);
 
   // Handle hardware back button on Android (called unconditionally)
   useEffect(() => {
@@ -64,8 +75,30 @@ export default function TransactionsTabScreen() {
     );
   }
 
+  // Role: Taxi Owner
+  if (effectiveLoginType === 'taxi_owner') {
+    return (
+      <TaxiOwnerHistoryScreen
+        onSelectShift={handleSelectShift}
+        taxiNumber={user.taxiNumber || ''}
+      />
+    );
+  }
+
+  // Role: Taxi Business Company / Fleet Admin
+  if (effectiveLoginType === 'taxi_business') {
+    return (
+      <TaxiBusinessHistoryScreen
+        onSelectShift={handleSelectShift}
+        taxiNumber={user.taxiNumber}
+        initialDriverId={params.driverId || params.empId}
+        onDriverChange={handleDriverChange}
+      />
+    );
+  }
+
   // Role 5: Other Business Employee - Dedicated Employee Shift History
-  if (user.loginType === 'other_business_employee') {
+  if (effectiveLoginType === 'other_business_employee') {
     return (
       <OtherBusinessEmployeeHistoryScreen
         userName={user.name}
@@ -75,8 +108,18 @@ export default function TransactionsTabScreen() {
     );
   }
 
+  // Role: Taxi Driver
+  if (effectiveLoginType === 'taxi_business_driver') {
+    return (
+      <TaxiDriverHistoryScreen
+        onSelectShift={handleSelectShift}
+        taxiNumber={user.taxiNumber || ''}
+      />
+    );
+  }
+
   // Role 4: Other Business Owner (Merchant)
-  if (user.loginType === 'other_business') {
+  if (effectiveLoginType === 'other_business') {
     return (
       <OtherBusinessTransactionsScreen
         businessName={user.businessName}
@@ -88,33 +131,10 @@ export default function TransactionsTabScreen() {
     );
   }
 
-  // Role: Taxi Driver
-  if (user.loginType === 'taxi_business_driver') {
-    return (
-      <TaxiDriverHistoryScreen
-        onSelectShift={handleSelectShift}
-        taxiNumber={user.taxiNumber || ''}
-      />
-    );
-  }
-
-  // Role: Taxi Owner
-  if (user.loginType === 'taxi_owner') {
-    return (
-      <TaxiOwnerHistoryScreen
-        onSelectShift={handleSelectShift}
-        taxiNumber={user.taxiNumber || ''}
-      />
-    );
-  }
-
-  // Role: Taxi Business Company / Fleet Admin
+  // Clean empty state while role is resolving
   return (
-    <TaxiBusinessHistoryScreen
-      onSelectShift={handleSelectShift}
-      taxiNumber={user.taxiNumber}
-      initialDriverId={params.driverId || params.empId}
-      onDriverChange={handleDriverChange}
-    />
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#D97706" />
+    </View>
   );
 }
