@@ -2,6 +2,7 @@ import { apiClient } from './apiClient';
 import { ActiveShiftData, shiftService } from './shiftService';
 import { tokenStorage } from './tokenStorage';
 import type { UserProfile } from '../context/AuthContext';
+import { mapBackendUserType, getRoleLabel } from './authService';
 
 export interface DashboardHeader {
   title?: string;
@@ -218,7 +219,16 @@ export interface DashboardResponse {
   data: DashboardData;
 }
 
+export interface DashboardSyncData {
+  user_type_key?: string;
+  role_id?: number;
+  is_taxi_service?: boolean;
+  header: DashboardHeader;
+}
+
+export type DashboardSyncCallback = (data: DashboardSyncData) => void;
 export type DashboardHeaderSyncCallback = (header: DashboardHeader) => void;
+let dashboardSyncListeners: DashboardSyncCallback[] = [];
 let headerSyncListeners: DashboardHeaderSyncCallback[] = [];
 let activeDashboardPromise: Promise<DashboardResponse> | null = null;
 let cachedDashboardHeader: DashboardHeader | null = null;
@@ -235,6 +245,28 @@ export function getCachedDashboardData(): DashboardData | null {
 export function clearDashboardCache(): void {
   cachedDashboardHeader = null;
   cachedDashboardData = null;
+}
+
+/**
+ * Listen to unified dashboard sync updates (role, permissions, header)
+ */
+export function onDashboardSync(callback: DashboardSyncCallback): () => void {
+  dashboardSyncListeners.push(callback);
+  if (cachedDashboardData) {
+    try {
+      callback({
+        user_type_key: cachedDashboardData.user_type_key,
+        role_id: cachedDashboardData.role_id,
+        is_taxi_service: cachedDashboardData.is_taxi_service,
+        header: cachedDashboardData.header || {},
+      });
+    } catch (err) {
+      console.warn('⚠️ Error in initial dashboard sync callback:', err);
+    }
+  }
+  return () => {
+    dashboardSyncListeners = dashboardSyncListeners.filter((cb) => cb !== callback);
+  };
 }
 
 /**
@@ -321,6 +353,8 @@ export const dashboardService = {
 
         if (resData?.data) {
           cachedDashboardData = resData.data;
+          const { user_type_key, role_id, is_taxi_service, header: h } = resData.data;
+
           if (resData.data.active_shift) {
             shiftService.setActiveShift(resData.data.active_shift);
           } else if (resData.data.is_on_shift === false) {
@@ -331,46 +365,74 @@ export const dashboardService = {
             tokenStorage.saveAllowedPaymentMethods(resData.data.allowed_payment_method);
             notifyAllowedPaymentMethodsChange(resData.data.allowed_payment_method);
           }
-        }
 
-        if (resData?.data?.header) {
-          const h = resData.data.header;
-          cachedDashboardHeader = h;
+          if (h) {
+            cachedDashboardHeader = h;
+          }
 
-          // 1. Persist abn, phone and business details to stored session on device
+          // 1. Persist resolved user role, taxi settings, and header details to stored session on device
           tokenStorage
             .loadStoredSession()
             .then(({ user }) => {
               if (user) {
+                const detectedLoginType = user_type_key
+                  ? mapBackendUserType(user_type_key)
+                  : user.loginType;
+
+                const resolvedTaxiNumber =
+                  h?.taxi_no !== undefined
+                    ? (h?.taxi_no || user.taxiNumber)
+                    : h?.identifier_type === 'taxi_no' && h?.identifier_value
+                    ? h?.identifier_value
+                    : user.taxiNumber;
+
                 const updated: UserProfile = {
                   ...user,
-                  abn: h.abn || user.abn,
-                  phone: h.phone || user.phone,
-                  businessName: h.business_name || user.businessName,
-                  empId: h.identifier_value || user.empId,
-                  taxiNumber:
-                    h.taxi_no !== undefined
-                      ? (h.taxi_no || user.taxiNumber)
-                      : h.identifier_type === 'taxi_no' && h.identifier_value
-                      ? h.identifier_value
-                      : user.taxiNumber,
-                  logoUrl: h.logo_url !== undefined ? h.logo_url : user.logoUrl,
+                  userTypeKey: user_type_key || user.userTypeKey,
+                  loginType: detectedLoginType,
+                  roleLabel: getRoleLabel(detectedLoginType) || user.roleLabel,
+                  isTaxiService: is_taxi_service ?? user.isTaxiService,
+                  roleId: role_id ?? user.roleId,
+                  name: h?.full_name || user.name,
+                  abn: h?.abn || user.abn,
+                  phone: h?.phone || user.phone,
+                  businessName: h?.business_name || user.businessName,
+                  empId: h?.identifier_value || user.empId,
+                  taxiNumber: resolvedTaxiNumber,
+                  logoUrl: h?.logo_url !== undefined ? h?.logo_url : user.logoUrl,
                   bannerImageUrl:
-                    h.banner_image_url !== undefined ? h.banner_image_url : user.bannerImageUrl,
+                    h?.banner_image_url !== undefined ? h?.banner_image_url : user.bannerImageUrl,
                 };
                 tokenStorage.saveUser(updated);
               }
             })
             .catch(() => {});
 
-          // 2. Notify active listeners (AuthContext, etc.)
-          headerSyncListeners.forEach((listener) => {
+          // 2. Notify dashboard sync listeners (AuthContext, etc.)
+          const syncPayload: DashboardSyncData = {
+            user_type_key,
+            role_id,
+            is_taxi_service,
+            header: h || {},
+          };
+          dashboardSyncListeners.forEach((listener) => {
             try {
-              listener(h);
+              listener(syncPayload);
             } catch (err) {
-              console.warn('⚠️ Error in dashboard header listener:', err);
+              console.warn('⚠️ Error in dashboard sync listener:', err);
             }
           });
+
+          // 3. Notify legacy header listeners
+          if (h) {
+            headerSyncListeners.forEach((listener) => {
+              try {
+                listener(h);
+              } catch (err) {
+                console.warn('⚠️ Error in dashboard header listener:', err);
+              }
+            });
+          }
         }
 
         return response.data;

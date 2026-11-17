@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { router } from 'expo-router';
-import { authService } from '../services/authService';
+import { authService, mapBackendUserType, getRoleLabel } from '../services/authService';
 import { tokenStorage } from '../services/tokenStorage';
 import { deviceService } from '../services/deviceService';
 import { onUnauthorized, resetUnauthorizedHandling } from '../services/apiClient';
-import { onDashboardHeaderSync, dashboardService } from '../services/dashboardService';
+import { onDashboardSync, dashboardService } from '../services/dashboardService';
 import { APP_CONFIG } from '../constants/appConfig';
 
 export type LoginType =
@@ -12,12 +12,14 @@ export type LoginType =
   | 'taxi_business'
   | 'taxi_business_driver'
   | 'other_business'
-  | 'other_business_employee';
+  | 'other_business_employee'
+  | '';
 
 export interface UserProfile {
   id: string;
   username: string;
   name: string;
+  userTypeKey?: string;
   loginType: LoginType;
   roleLabel: string;
   businessName: string;
@@ -29,13 +31,15 @@ export interface UserProfile {
   phone?: string;
   logoUrl?: string | null;
   bannerImageUrl?: string | null;
+  isTaxiService?: boolean;
+  roleId?: number;
 }
 
 export const EMPTY_USER: UserProfile = {
   id: '',
   username: '',
   name: '',
-  loginType: 'other_business',
+  loginType: '',
   roleLabel: '',
   businessName: '',
   businessAddress: '',
@@ -46,6 +50,7 @@ export const EMPTY_USER: UserProfile = {
   phone: '',
   logoUrl: null,
   bannerImageUrl: null,
+  isTaxiService: false,
 };
 
 interface AuthContextType {
@@ -64,17 +69,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
-  // Auto-sync dashboard header parameters (abn, phone, businessName, empId, logoUrl) to user state & storage
+  // Auto-sync unified dashboard parameters (role, taxi permissions, header) to user state & storage
   useEffect(() => {
-    const unsubscribe = onDashboardHeaderSync((header) => {
+    const unsubscribe = onDashboardSync((syncData) => {
+      const header = syncData.header;
       setUser((prev) => {
+        const detectedLoginType = syncData.user_type_key
+          ? mapBackendUserType(syncData.user_type_key)
+          : prev.loginType;
+
+        const resolvedTaxiNumber =
+          header.taxi_no !== undefined
+            ? (header.taxi_no || prev.taxiNumber)
+            : header.identifier_type === 'taxi_no' && header.identifier_value
+            ? header.identifier_value
+            : prev.taxiNumber;
+
         const hasChanged =
+          prev.loginType !== detectedLoginType ||
+          (Boolean(syncData.user_type_key) && prev.userTypeKey !== syncData.user_type_key) ||
           (Boolean(header.abn) && prev.abn !== header.abn) ||
           (Boolean(header.phone) && prev.phone !== header.phone) ||
           (Boolean(header.business_name) && prev.businessName !== header.business_name) ||
           (Boolean(header.identifier_value) && prev.empId !== header.identifier_value) ||
+          (Boolean(resolvedTaxiNumber) && prev.taxiNumber !== resolvedTaxiNumber) ||
+          (Boolean(header.full_name) && prev.name !== header.full_name) ||
           (header.logo_url !== undefined && prev.logoUrl !== header.logo_url) ||
-          (header.banner_image_url !== undefined && prev.bannerImageUrl !== header.banner_image_url);
+          (header.banner_image_url !== undefined && prev.bannerImageUrl !== header.banner_image_url) ||
+          (syncData.is_taxi_service !== undefined && prev.isTaxiService !== syncData.is_taxi_service) ||
+          (syncData.role_id !== undefined && prev.roleId !== syncData.role_id);
 
         if (!hasChanged) {
           return prev;
@@ -82,10 +105,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const next: UserProfile = {
           ...prev,
+          userTypeKey: syncData.user_type_key || prev.userTypeKey,
+          loginType: detectedLoginType,
+          roleLabel: getRoleLabel(detectedLoginType) || prev.roleLabel,
+          isTaxiService: syncData.is_taxi_service ?? prev.isTaxiService,
+          roleId: syncData.role_id ?? prev.roleId,
+          name: header.full_name || prev.name,
           abn: header.abn || prev.abn,
           phone: header.phone || prev.phone,
           businessName: header.business_name || prev.businessName,
           empId: header.identifier_value || prev.empId,
+          taxiNumber: resolvedTaxiNumber,
           logoUrl: header.logo_url !== undefined ? header.logo_url : prev.logoUrl,
           bannerImageUrl:
             header.banner_image_url !== undefined ? header.banner_image_url : prev.bannerImageUrl,
@@ -107,9 +137,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { user: storedUser, accessToken } = await tokenStorage.loadStoredSession();
         if (storedUser && accessToken) {
-          setUser(storedUser);
+          // Strictly use stored userTypeKey or stored loginType to resolve role
+          const resolvedLoginType = storedUser.userTypeKey
+            ? mapBackendUserType(storedUser.userTypeKey)
+            : (storedUser.loginType ? mapBackendUserType(storedUser.loginType) : '');
+
+          const initialUser: UserProfile = {
+            ...storedUser,
+            loginType: resolvedLoginType,
+            roleLabel: getRoleLabel(resolvedLoginType) || storedUser.roleLabel,
+          };
+          setUser(initialUser);
           setIsAuthenticated(true);
-          console.log('🔐 [AuthContext] Restored encrypted user session:', storedUser.name);
+          console.log('🔐 [AuthContext] Restored encrypted user session:', initialUser.name, initialUser.loginType);
           dashboardService.getDashboard().catch(() => {});
         }
       } catch (err) {

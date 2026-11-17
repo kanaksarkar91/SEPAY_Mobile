@@ -49,7 +49,9 @@ try {
   TinyPrinterNative = requireNativeModule('TinyPrinter');
 } catch (e) {
   // Graceful fallback for non-native environments or before prebuild
-  console.warn('TinyPrinter native module is not linked or not supported on this platform:', e);
+  if (__DEV__) {
+    console.log('[TinyPrinter] Native module is not linked or not supported on this platform:', e);
+  }
 }
 
 const emitter: any = TinyPrinterNative ? new EventEmitter(TinyPrinterNative) : null;
