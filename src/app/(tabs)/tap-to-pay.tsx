@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -229,9 +229,12 @@ export default function TapToPayEnterAmountScreen() {
     return () => unsub();
   }, [resetPaymentState]);
 
+  const isNavigatingRef = useRef(false);
+
   // Reset when gaining focus if previous payment was completed or reset was requested
   useFocusEffect(
     useCallback(() => {
+      isNavigatingRef.current = false;
       if (paymentSession.consumePaymentReset() || params?.reset === '1') {
         resetPaymentState();
       }
@@ -491,6 +494,8 @@ export default function TapToPayEnterAmountScreen() {
 
   // Continue from keypad to Confirm screen (Taxi) or directly to Payment (Other Business)
   const handleContinueToConfirm = async () => {
+    if (isNavigatingRef.current) return;
+
     // 1. Amount validation (Mandatory for all user types)
     if (numericAmount <= 0) {
       showAlert({
@@ -536,6 +541,7 @@ export default function TapToPayEnterAmountScreen() {
       const finalDropupLoc = isDropoffCustom && dropoffLocation ? (dropoffLocationAddress || dropoffLocation).trim() : null;
 
       if (activeMethod === 'card') {
+        isNavigatingRef.current = true;
         router.push({
           pathname: '/(tabs)/card-entry',
           params: {
@@ -550,6 +556,7 @@ export default function TapToPayEnterAmountScreen() {
           },
         });
       } else if (activeMethod === 'tap') {
+        isNavigatingRef.current = true;
         router.push({
           pathname: '/(tabs)/tap-ready',
           params: {
@@ -650,6 +657,8 @@ export default function TapToPayEnterAmountScreen() {
 
   // Continue from Confirm Screen to Next Stage (Taxi)
   const handleFinalProceed = async () => {
+    if (isNavigatingRef.current) return;
+
     // 1. Amount validation
     if (numericAmount <= 0) {
       showAlert({
@@ -692,6 +701,7 @@ export default function TapToPayEnterAmountScreen() {
     const finalDropupLoc = isDropoffCustom && dropoffLocation ? (dropoffLocationAddress || dropoffLocation).trim() : null;
 
     if (activeMethod === 'card') {
+      isNavigatingRef.current = true;
       router.push({
         pathname: '/(tabs)/card-entry',
         params: {
@@ -707,6 +717,7 @@ export default function TapToPayEnterAmountScreen() {
         },
       });
     } else if (activeMethod === 'tap') {
+      isNavigatingRef.current = true;
       router.push({
         pathname: '/(tabs)/tap-ready',
         params: {

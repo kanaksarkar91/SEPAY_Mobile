@@ -204,6 +204,8 @@ export async function createPaymentIntentOnBackend(
     pickup_location?: string | null;
     dropup_location?: string | null;
     shift_session_id?: number | string | null;
+    payment_attempt_id?: string | null;
+    idempotency_key?: string | null;
   }
 ): Promise<CreatePaymentIntentResponse> {
   const formattedCard = card
@@ -256,17 +258,31 @@ export async function createPaymentIntentOnBackend(
     payload.dropup_location = null;
   }
 
+  const idempotencyKey =
+    routeDetails?.idempotency_key ||
+    routeDetails?.payment_attempt_id ||
+    undefined;
+
+  if (idempotencyKey) {
+    payload.idempotency_key = idempotencyKey;
+    payload.payment_attempt_id = idempotencyKey;
+  }
+
+  const requestConfig = idempotencyKey
+    ? { headers: { 'Idempotency-Key': String(idempotencyKey) } }
+    : undefined;
+
   try {
     let res: any;
     try {
-      res = await apiClient.post('/api/payment/create-intent', payload);
+      res = await apiClient.post('/api/payment/create-intent', payload, requestConfig);
     } catch (err: any) {
       if (err?.status === 404) {
         try {
-          res = await apiClient.post('/api/create_payment_intent', payload);
+          res = await apiClient.post('/api/create_payment_intent', payload, requestConfig);
         } catch (innerErr: any) {
           if (innerErr?.status === 404) {
-            res = await apiClient.post('/create_payment_intent', payload);
+            res = await apiClient.post('/create_payment_intent', payload, requestConfig);
           } else {
             throw innerErr;
           }

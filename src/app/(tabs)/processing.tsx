@@ -203,6 +203,7 @@ export default function ProcessingScreen() {
           pickup_location: pickLoc || null,
           dropup_location: dropLoc || null,
           shift_session_id: sId || null,
+          payment_attempt_id: attemptId || undefined,
         });
 
         if (result.success && result.paymentIntent) {
@@ -290,7 +291,7 @@ export default function ProcessingScreen() {
     }
 
     process();
-  }, [currentExecutionKey, errorMessage]);
+  }, [currentExecutionKey, errorMessage, attemptId]);
 
   const handleRetry = () => {
     if (isExecutingRef.current) return;

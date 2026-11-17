@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -78,6 +78,7 @@ export default function CardEntryScreen() {
   const [isFraudWarningVisible, setIsFraudWarningVisible] = useState(false);
   const [isFraudRiskAccepted, setIsFraudRiskAccepted] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const hasTriggeredRef = useRef(false);
 
   // Reset card fields helper
   const resetCardFields = useCallback(() => {
@@ -87,6 +88,7 @@ export default function CardEntryScreen() {
     setCardholder('');
     setIsFraudWarningVisible(false);
     setIsProcessing(false);
+    hasTriggeredRef.current = false;
   }, []);
 
   // Subscribe to external payment reset events
@@ -100,6 +102,8 @@ export default function CardEntryScreen() {
   // Reset when gaining focus if reset flag is set
   useFocusEffect(
     useCallback(() => {
+      hasTriggeredRef.current = false;
+      setIsProcessing(false);
       if (paymentSession.consumePaymentReset()) {
         resetCardFields();
       }
@@ -156,6 +160,7 @@ export default function CardEntryScreen() {
 
   // Open Fraud Warning modal
   const handleOpenConfirm = () => {
+    if (isProcessing || hasTriggeredRef.current) return;
     const cleanNum = cardNumber.replace(/\s/g, '');
     if (cleanNum.length < 15 || !expiry.includes('/') || cvc.length < 3) {
       showAlert({
@@ -171,14 +176,15 @@ export default function CardEntryScreen() {
 
   // Confirm and Charge -> Routes to Processing Screen with real card input
   const handleProceedCharge = () => {
-    if (!isFraudRiskAccepted) return;
+    if (!isFraudRiskAccepted || isProcessing || hasTriggeredRef.current) return;
+    hasTriggeredRef.current = true;
     setIsProcessing(true);
     setIsFraudWarningVisible(false);
 
     const [expMonthRaw, expYearRaw] = expiry.split('/');
     const expYear = expYearRaw?.trim().length === 2 ? `20${expYearRaw.trim()}` : (expYearRaw?.trim() || '');
 
-    router.push({
+    router.replace({
       pathname: '/(tabs)/processing',
       params: {
         amount: rawAmount,
@@ -200,7 +206,6 @@ export default function CardEntryScreen() {
         payment_attempt_id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       },
     });
-    setIsProcessing(false);
   };
 
   return (
@@ -305,8 +310,9 @@ export default function CardEntryScreen() {
           {/* ── Action Buttons ── */}
           <View style={styles.buttonsContainer}>
             <TouchableOpacity
-              style={styles.confirmBtn}
+              style={[styles.confirmBtn, isProcessing && { opacity: 0.6 }]}
               onPress={handleOpenConfirm}
+              disabled={isProcessing}
               activeOpacity={0.85}
             >
               <Text style={styles.confirmBtnText}>
