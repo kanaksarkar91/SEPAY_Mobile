@@ -9,7 +9,6 @@ import {
   Image,
   Share,
   Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -381,9 +380,8 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
         {/* Common Header Bar with Shift ID Title */}
         <HeaderBar
@@ -611,13 +609,6 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
                 txn.payment_status || (txn as any).receipt?.payment_status,
                 txn.reason || (txn as any).receipt?.reason
               );
-              const extraReason =
-                statusInfo.reason &&
-                  statusInfo.reason.toLowerCase() !== 'failed' &&
-                  statusInfo.reason.toLowerCase() !== 'pending' &&
-                  statusInfo.reason.toLowerCase() !== 'success'
-                  ? ` • ${statusInfo.reason}`
-                  : '';
 
               return (
                 <View key={txn.id} style={styles.tripCard}>
@@ -717,9 +708,9 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
                         numberOfLines={1}
                       >
                         {statusInfo.isFailed
-                          ? `Failed${extraReason}`
+                          ? 'Failed'
                           : statusInfo.isPending
-                            ? `Pending${extraReason}`
+                            ? 'Pending'
                             : txn.verification}
                       </Text>
                     </View>
@@ -789,7 +780,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
           </TouchableOpacity>
         </View> */}
 
-        <View style={{ height: Math.max(insets.bottom, 24) }} />
+        <View style={{ height: Math.max(insets.bottom, 24) + 40 }} />
       </ScrollView>
 
       {/* Share Receipt Modal */}
@@ -799,7 +790,6 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
         receiptInput={selectedShareReceiptInput}
       />
     </View>
-  </TouchableWithoutFeedback>
   );
 }
 

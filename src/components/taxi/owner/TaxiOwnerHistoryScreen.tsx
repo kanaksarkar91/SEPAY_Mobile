@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,6 +37,8 @@ export default function TaxiOwnerHistoryScreen({
   onSelectShift,
   taxiNumber = '',
 }: TaxiOwnerHistoryScreenProps) {
+  const insets = useSafeAreaInsets();
+  const listBottomPadding = Math.max(insets.bottom, 16) + 96;
   const PAGE_LIMIT = 10;
 
   // API State
@@ -554,9 +556,8 @@ export default function TaxiOwnerHistoryScreen({
   );
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
         {/* Header Bar with Taxi Number Subtitle */}
         <HeaderBar
@@ -650,7 +651,7 @@ export default function TaxiOwnerHistoryScreen({
                 tintColor="#F59E0B"
               />
             }
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -666,7 +667,6 @@ export default function TaxiOwnerHistoryScreen({
           initialEndDate={endDate}
         />
       </View>
-    </TouchableWithoutFeedback>
   );
 }
 

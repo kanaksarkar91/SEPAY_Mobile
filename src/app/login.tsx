@@ -70,34 +70,38 @@ export default function LoginScreen() {
 
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardContainer}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardContainer}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: Math.max(insets.top, 24) + 16,
+              paddingBottom: Math.max(insets.bottom, 24) + 20,
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={false}
+          overScrollMode="always"
         >
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
-              {
-                paddingTop: Math.max(insets.top, 24) + 16,
-                paddingBottom: Math.max(insets.bottom, 24) + 20,
-              },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
-            {/* Top Brand Logo */}
-            <View style={styles.logoWrap}>
-              <Image
-                source={require('../../assets/SE-pay-logo-gif.gif')}
-                style={styles.logoImage}
-                resizeMode="contain"
-              />
-            </View>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={styles.innerTouchable}>
+              {/* Top Brand Logo */}
+              <View style={styles.logoWrap}>
+                <Image
+                  source={require('../../assets/SE-pay-logo-gif.gif')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+              </View>
 
             {/* Title & Subtitle */}
             <View style={styles.heroTextWrap}>
@@ -229,13 +233,12 @@ export default function LoginScreen() {
             <View style={styles.versionWrap}>
               <Text style={styles.versionText}>{APP_CONFIG.displayVersion}</Text>
             </View>
-
-
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
-    </TouchableWithoutFeedback>
-  );
+          </View>
+        </TouchableWithoutFeedback>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
@@ -247,6 +250,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
+  },
+  innerTouchable: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
