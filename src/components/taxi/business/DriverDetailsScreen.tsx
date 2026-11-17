@@ -379,13 +379,7 @@ export default function DriverDetailsScreen() {
             </View>
             <View style={styles.cardDivider} />
 
-            {/* Bank Name */}
-            <View style={styles.bankFieldBlock}>
-              <Text style={styles.bankFieldLabel}>Bank Name</Text>
-              <Text style={styles.bankFieldValue}>
-                {driver?.bank_account?.bank_name || '--'}
-              </Text>
-            </View>
+
 
             {/* Account Name */}
             <View style={styles.bankFieldBlock}>

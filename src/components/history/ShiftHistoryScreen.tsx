@@ -10,8 +10,8 @@ import {
   Modal,
   Pressable,
   Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -76,6 +76,8 @@ export default function ShiftHistoryScreen({
   taxiNumber = '',
   isDriver = false,
 }: ShiftHistoryScreenProps) {
+  const insets = useSafeAreaInsets();
+  const listBottomPadding = Math.max(insets.bottom, 16) + 96;
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInputValue, setSearchInputValue] = useState('');
   const [filterType, setFilterType] = useState<ShiftFilterType>('all');
@@ -122,27 +124,26 @@ export default function ShiftHistoryScreen({
   }, [filterType, searchQuery]);
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
-        {/* Common Header Bar */}
-        <HeaderBar
-          title="Shift History"
-          subtitle={
-            <Text style={styles.headerSubtitleText}>
-              Taxi No.: <Text style={styles.headerTaxiOrange}>{taxiNumber}</Text>
-            </Text>
-          }
-        />
+      {/* Common Header Bar */}
+      <HeaderBar
+        title="Shift History"
+        subtitle={
+          <Text style={styles.headerSubtitleText}>
+            Taxi No.: <Text style={styles.headerTaxiOrange}>{taxiNumber}</Text>
+          </Text>
+        }
+      />
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: listBottomPadding }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
           {/* ── SELECT DRIVER SECTION (Only for taxi fleet owner) ── */}
           {!isDriver && (
             <>
@@ -465,7 +466,13 @@ export default function ShiftHistoryScreen({
           style={styles.modalBackdrop}
           onPress={() => setIsDriverModalVisible(false)}
         >
-          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[
+              styles.modalSheet,
+              { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.modalDragHandle} />
             <Text style={styles.modalTitle}>Select Taxi Driver</Text>
             <Text style={styles.modalSubtitle}>Filter shifts by driver & fleet vehicle</Text>
@@ -510,7 +517,6 @@ export default function ShiftHistoryScreen({
         </Pressable>
       </Modal>
     </View>
-  </TouchableWithoutFeedback>
   );
 }
 

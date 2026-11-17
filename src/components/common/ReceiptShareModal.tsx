@@ -11,6 +11,7 @@ import {
   Share,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -39,6 +40,7 @@ export default function ReceiptShareModal({
   onClose,
   receiptInput,
 }: ReceiptShareModalProps) {
+  const insets = useSafeAreaInsets();
   const { showAlert } = useConfirmModal();
   const [isSharing, setIsSharing] = useState(false);
   const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | null>(null);
@@ -656,7 +658,12 @@ export default function ReceiptShareModal({
         <TouchableWithoutFeedback onPress={isSharing ? undefined : onClose}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalSheet}>
+              <View
+                style={[
+                  styles.modalSheet,
+                  { paddingBottom: Math.max(insets.bottom, 24) + 16 },
+                ]}
+              >
                 <View style={styles.modalHandle} />
 
                 <View style={styles.modalHeaderRow}>
@@ -1272,12 +1279,14 @@ const styles = StyleSheet.create({
   modalCancelBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    marginTop: 4,
+    paddingVertical: 14,
+    marginTop: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
   },
   modalCancelText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#475569',
   },
 });

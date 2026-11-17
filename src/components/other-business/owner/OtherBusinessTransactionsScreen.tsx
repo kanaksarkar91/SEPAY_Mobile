@@ -14,8 +14,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -89,6 +89,8 @@ export default function OtherBusinessTransactionsScreen({
   onSelectShift,
   onEmployeeChange,
 }: OtherBusinessTransactionsScreenProps) {
+  const insets = useSafeAreaInsets();
+  const listBottomPadding = Math.max(insets.bottom, 16) + 96;
   const { showAlert } = useConfirmModal();
 
   const PAGE_LIMIT = 10;
@@ -549,21 +551,20 @@ export default function OtherBusinessTransactionsScreen({
   const employeeList = selector?.employee_list || [];
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
-        {/* Screen Title: Centered "Shift History" */}
-        <HeaderBar title={shiftHistoryData?.header?.title || 'Shift History'} showBack={false} />
+      {/* Screen Title: Centered "Shift History" */}
+      <HeaderBar title={shiftHistoryData?.header?.title || 'Shift History'} showBack={false} />
 
-        <FlatList
-          data={shiftRecords}
-          keyExtractor={(item, index) => `${item.id || item.shift_id || index}`}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+      <FlatList
+        data={shiftRecords}
+        keyExtractor={(item, index) => `${item.id || item.shift_id || index}`}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: listBottomPadding }]}
           onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}
         refreshControl={
@@ -1022,7 +1023,13 @@ export default function OtherBusinessTransactionsScreen({
           style={styles.modalBackdrop}
           onPress={() => setIsEmployeeModalVisible(false)}
         >
-          <Pressable style={styles.modalContainer} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[
+              styles.modalContainer,
+              { paddingBottom: Math.max(insets.bottom, 24) + 16 },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Select Employee</Text>
@@ -1257,7 +1264,6 @@ export default function OtherBusinessTransactionsScreen({
         )}
       </Modal>
     </View>
-  </TouchableWithoutFeedback>
   );
 }
 

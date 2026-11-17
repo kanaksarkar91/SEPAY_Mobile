@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -57,6 +57,7 @@ export default function OtherBusinessShiftDetailsScreen({
   businessName = 'Business',
   userName = 'Staff Member',
 }: OtherBusinessShiftDetailsScreenProps) {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { showAlert } = useConfirmModal();
 
@@ -460,9 +461,8 @@ export default function OtherBusinessShiftDetailsScreen({
   const isLive = Boolean(shiftDetails?.shift_info?.live ?? (shiftDetails as any)?.live);
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
         {/* Header Bar with Back Button and Shift ID */}
         <HeaderBar
@@ -738,13 +738,6 @@ export default function OtherBusinessShiftDetailsScreen({
                     txn.payment_status || txn.receipt?.payment_status,
                     txn.reason || txn.receipt?.reason
                   );
-                  const extraReason =
-                    statusInfo.reason &&
-                      statusInfo.reason.toLowerCase() !== 'failed' &&
-                      statusInfo.reason.toLowerCase() !== 'pending' &&
-                      statusInfo.reason.toLowerCase() !== 'success'
-                      ? ` • ${statusInfo.reason}`
-                      : '';
 
                   return (
                     <TouchableOpacity
@@ -868,9 +861,9 @@ export default function OtherBusinessShiftDetailsScreen({
                             numberOfLines={1}
                           >
                             {statusInfo.isFailed
-                              ? `Failed${extraReason}`
+                              ? 'Failed'
                               : statusInfo.isPending
-                                ? `Pending${extraReason}`
+                                ? 'Pending'
                                 : 'Settled • Successful'}
                           </Text>
                         </View>
@@ -935,7 +928,7 @@ export default function OtherBusinessShiftDetailsScreen({
           </>
         )}
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: Math.max(insets.bottom, 24) + 40 }} />
       </ScrollView>
 
       {/* ── UNIFIED RECEIPT SHARE MODAL (PNG, GIF, PDF) ── */}
@@ -945,7 +938,6 @@ export default function OtherBusinessShiftDetailsScreen({
         receiptInput={selectedShareReceiptInput}
       />
     </View>
-  </TouchableWithoutFeedback>
   );
 }
 

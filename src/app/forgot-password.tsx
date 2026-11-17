@@ -248,41 +248,45 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
-        {/* Top Header Bar */}
-        <HeaderBar
-          title={step === 'success' ? 'Password Reset' : 'Forgot Password'}
-          showBack={step !== 'success'}
-          onBack={() => {
-            if (step === 'otp') {
-              setStep('identifier');
-              setErrorMessage('');
-            } else if (step === 'new_password') {
-              setStep('otp');
-              setErrorMessage('');
-            } else {
-              router.back();
-            }
-          }}
-        />
+      {/* Top Header Bar */}
+      <HeaderBar
+        title={step === 'success' ? 'Password Reset' : 'Forgot Password'}
+        showBack={step !== 'success'}
+        onBack={() => {
+          if (step === 'otp') {
+            setStep('identifier');
+            setErrorMessage('');
+          } else if (step === 'new_password') {
+            setStep('otp');
+            setErrorMessage('');
+          } else {
+            router.back();
+          }
+        }}
+      />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardContainer}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardContainer}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          overScrollMode="always"
         >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Top Brand Logo */}
-            <View style={styles.logoWrap}>
-              <Image
-                source={require('../../assets/se_pay_brand_logo.png')}
-                style={styles.brandLogo}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={{ flex: 1, width: '100%', alignItems: 'center' }}>
+              {/* Top Brand Logo */}
+              <View style={styles.logoWrap}>
+                <Image
+                  source={require('../../assets/se_pay_brand_logo.png')}
+                  style={styles.brandLogo}
                 resizeMode="contain"
               />
             </View>
@@ -812,14 +816,15 @@ export default function ForgotPasswordScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Version Text */}
-            <View style={styles.versionWrap}>
-              <Text style={styles.versionText}>{APP_CONFIG.displayVersion}</Text>
+              {/* Version Text */}
+              <View style={styles.versionWrap}>
+                <Text style={styles.versionText}>{APP_CONFIG.displayVersion}</Text>
+              </View>
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
-    </TouchableWithoutFeedback>
+          </TouchableWithoutFeedback>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
