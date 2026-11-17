@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { BackHandler, View, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { mapBackendUserType } from '../../services/authService';
 import { getCachedDashboardData } from '../../services/dashboardService';
@@ -18,6 +18,7 @@ import { ShiftRecordItem } from '../../services/shiftService';
 
 export default function TransactionsTabScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{ shiftId?: string; empId?: string; driverId?: string }>();
   const { user } = useAuth();
   const cachedDash = getCachedDashboardData();
@@ -29,6 +30,16 @@ export default function TransactionsTabScreen() {
     }
     return user.loginType;
   }, [user.loginType, cachedDash?.user_type_key]);
+
+  // Reset shift details / selection when user taps the History tab in the bottom bar
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress' as any, () => {
+      if (params.shiftId) {
+        router.setParams({ shiftId: '' });
+      }
+    });
+    return unsubscribe;
+  }, [navigation, router, params.shiftId]);
 
   // Handle hardware back button on Android (called unconditionally)
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs, Redirect, router } from 'expo-router';
 import { View, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,6 +77,17 @@ export default function TabLayout() {
             </View>
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            // Reset route params so tapping the History tab always opens the root shift history list
+            router.setParams({ shiftId: '', empId: '', driverId: '' });
+            navigation.navigate({
+              name: 'transactions',
+              params: { shiftId: '', empId: '', driverId: '' },
+              merge: false,
+            } as any);
+          },
+        })}
       />
       <Tabs.Screen
         name="profile"
