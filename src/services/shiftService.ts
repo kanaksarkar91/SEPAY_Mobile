@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import { deviceService } from './deviceService';
+import { appLogger } from './appLogger';
 import type { ReceiptData } from './receiptService';
 
 export interface ActiveShiftData {
@@ -318,6 +319,9 @@ function notifyShiftChange(shift: ActiveShiftData | null) {
   });
 }
 
+let startShiftPromise: Promise<StartShiftResponse> | null = null;
+let endShiftPromise: Promise<EndShiftResponse> | null = null;
+
 /**
  * Shift Service with unified APIs for managing shifts
  */
@@ -393,16 +397,29 @@ export const shiftService = {
    * Starts a new work session and captures start time and shift ID.
    */
   startShift: async (payload?: StartShiftPayload): Promise<StartShiftResponse> => {
-    const deviceId = payload?.device_id || (await deviceService.getDeviceId());
-    const response = await apiClient.post<StartShiftResponse>('/api/shift/start', {
-      device_id: deviceId,
-    });
-    if (response.data?.status && response.data?.data) {
-      lastActiveShift = response.data.data.active_shift;
-      lastUserId = response.data.data.user_id;
-      notifyShiftChange(lastActiveShift);
+    if (startShiftPromise) {
+      appLogger.warn('SHIFT_SERVICE', 'startShift already in flight, returning active promise');
+      return startShiftPromise;
     }
-    return response.data;
+
+    startShiftPromise = (async () => {
+      try {
+        const deviceId = payload?.device_id || (await deviceService.getDeviceId());
+        const response = await apiClient.post<StartShiftResponse>('/api/shift/start', {
+          device_id: deviceId,
+        });
+        if (response.data?.status && response.data?.data) {
+          lastActiveShift = response.data.data.active_shift;
+          lastUserId = response.data.data.user_id;
+          notifyShiftChange(lastActiveShift);
+        }
+        return response.data;
+      } finally {
+        startShiftPromise = null;
+      }
+    })();
+
+    return startShiftPromise;
   },
 
   /**
@@ -410,21 +427,34 @@ export const shiftService = {
    * Ends an active work session.
    */
   endShift: async (payload: EndShiftPayload): Promise<EndShiftResponse> => {
-    const body: Record<string, any> = {
-      shift_session_id: payload.shift_session_id,
-    };
-    if (payload.user_id !== undefined && payload.user_id !== null) {
-      body.user_id = payload.user_id;
-    } else if (lastUserId !== null) {
-      body.user_id = lastUserId;
+    if (endShiftPromise) {
+      appLogger.warn('SHIFT_SERVICE', 'endShift already in flight, returning active promise');
+      return endShiftPromise;
     }
 
-    const response = await apiClient.post<EndShiftResponse>('/api/shift/end', body);
-    if (response.data?.status) {
-      lastActiveShift = null;
-      notifyShiftChange(null);
-    }
-    return response.data;
+    endShiftPromise = (async () => {
+      try {
+        const body: Record<string, any> = {
+          shift_session_id: payload.shift_session_id,
+        };
+        if (payload.user_id !== undefined && payload.user_id !== null) {
+          body.user_id = payload.user_id;
+        } else if (lastUserId !== null) {
+          body.user_id = lastUserId;
+        }
+
+        const response = await apiClient.post<EndShiftResponse>('/api/shift/end', body);
+        if (response.data?.status) {
+          lastActiveShift = null;
+          notifyShiftChange(null);
+        }
+        return response.data;
+      } finally {
+        endShiftPromise = null;
+      }
+    })();
+
+    return endShiftPromise;
   },
 
   getActiveShift: (): ActiveShiftData | null => lastActiveShift,

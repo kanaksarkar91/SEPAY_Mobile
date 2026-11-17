@@ -304,11 +304,7 @@ export default function ProcessingScreen() {
 
   const handleCancel = () => {
     if (isExecutingRef.current) return;
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)/tap-to-pay');
-    }
+    router.replace('/(tabs)/tap-to-pay');
   };
 
   return (

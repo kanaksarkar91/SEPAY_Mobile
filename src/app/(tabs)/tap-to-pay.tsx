@@ -604,7 +604,7 @@ export default function TapToPayEnterAmountScreen() {
           paymentSession.markPaymentCompleted();
           dashboardService.getDashboard().catch(() => { });
 
-          router.push({
+          router.replace({
             pathname: '/(tabs)/payment-success',
             params: {
               amount: finalAmountFormatted,
@@ -767,7 +767,7 @@ export default function TapToPayEnterAmountScreen() {
         paymentSession.markPaymentCompleted();
         dashboardService.getDashboard().catch(() => { });
 
-        router.push({
+        router.replace({
           pathname: '/(tabs)/payment-success',
           params: {
             amount: totalAmountFormatted,
