@@ -66,6 +66,12 @@ class PrinterService {
   }
 
   public getState(): PrinterServiceState {
+    this.state.isAvailable = this.isAvailable();
+    if (this.state.isAvailable) {
+      try {
+        this.state.isBleEnabled = TinyPrinter.isBleEnabled();
+      } catch {}
+    }
     return this.state;
   }
 
@@ -322,6 +328,16 @@ class PrinterService {
   public feedPaper(): boolean {
     if (!this.isAvailable()) return false;
     return TinyPrinter.feedPaper();
+  }
+
+  public openLocationSettings(): boolean {
+    if (!this.isAvailable()) return false;
+    return TinyPrinter.openLocationSettings();
+  }
+
+  public enableBluetooth(): boolean {
+    if (!this.isAvailable()) return false;
+    return TinyPrinter.enableBluetooth();
   }
 
   public async autoConnect(): Promise<boolean> {

@@ -43,7 +43,8 @@ export default function ReceiptShareModal({
   receiptInput,
 }: ReceiptShareModalProps) {
   const insets = useSafeAreaInsets();
-  const { showAlert } = useConfirmModal();
+  const router = useRouter();
+  const { showAlert, showConfirm } = useConfirmModal();
   const [isSharing, setIsSharing] = useState(false);
   const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | 'thermal' | null>(null);
 
@@ -122,7 +123,11 @@ export default function ReceiptShareModal({
 
       const res = await printerService.printReceiptImage(base64Png, 3);
       if (!res.success) {
-        if (res.error?.includes('Printer Settings')) {
+        if (
+          res.error?.includes('Printer Settings') ||
+          res.error?.includes('No thermal printer connected') ||
+          res.error?.includes('not connected')
+        ) {
           showConfirm({
             title: 'Printer Not Connected',
             message: 'No thermal printer is connected. Would you like to configure your printer in Printer Settings?',
@@ -773,7 +778,23 @@ export default function ReceiptShareModal({
                     <View style={styles.modalOptionTitleRow}>
                       <Text style={styles.modalOptionTitle}>Print Receipt (Thermal Printer)</Text>
                     </View>
+                    <Text style={styles.modalOptionSubtitle}>
+                      {printerService.getState().connectedDevice
+                        ? `Connected: ${printerService.getState().connectedDevice?.name || 'Printer'}`
+                        : 'Tap to print or connect printer'}
+                    </Text>
                   </View>
+                  <TouchableOpacity
+                    style={styles.modalOptionSettingsBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      onClose();
+                      router.push('/printer-settings');
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="settings" size={17} color="#64748B" />
+                  </TouchableOpacity>
                   {isSharing && sharingFormat === 'thermal' ? (
                     <ActivityIndicator size="small" color="#0F172A" />
                   ) : (
@@ -1370,6 +1391,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  modalOptionSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  modalOptionSettingsBtn: {
+    padding: 6,
+    marginRight: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
   },
   modalCancelBtn: {
     alignItems: 'center',
