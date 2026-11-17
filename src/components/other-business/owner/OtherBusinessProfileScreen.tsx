@@ -15,6 +15,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -40,6 +41,7 @@ import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { DiagnosticLogsModal } from '../../common/DiagnosticLogsModal';
 
 export default function OtherBusinessProfileScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user: authUser, logout } = useAuth();
   const { showConfirm, showAlert } = useConfirmModal();
@@ -771,7 +773,13 @@ export default function OtherBusinessProfileScreen() {
           style={styles.modalBackdrop}
           onPress={() => setIsBankModalVisible(false)}
         >
-          <Pressable style={styles.bankModalSheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[
+              styles.bankModalSheet,
+              { paddingBottom: Math.max(insets.bottom, 24) + 16 },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.modalDragHandle} />
 
             {/* Header: Bank Badge + Title + Verified Pill + Close Button */}
@@ -952,14 +960,23 @@ export default function OtherBusinessProfileScreen() {
               setIsUpdateBankModalVisible(false);
             }}
           >
-            <Pressable style={styles.updateModalSheet} onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={[
+                styles.updateModalSheet,
+                { paddingBottom: Math.max(insets.bottom, 16) },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
               <View style={styles.modalDragHandle} />
 
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 bounces={false}
-                contentContainerStyle={styles.updateModalScrollContent}
+                contentContainerStyle={[
+                  styles.updateModalScrollContent,
+                  { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+                ]}
               >
                 {/* Warning Icon Badge - hide when typing so inputs aren't pushed down */}
                 {!isKeyboardVisible && (
@@ -1678,12 +1695,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: '#FDE68A',
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: 10,
   },
   updateBankText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#B45309',
   },
 
