@@ -743,7 +743,9 @@ export default function TaxiBusinessDashboard({
                       key={String(driver.id)}
                       style={styles.driverCard}
                       activeOpacity={0.8}
-                      onPress={() => handleDriverPress(driver)}
+                    // onPress={() => handleDriverPress(driver)
+
+                    // }
                     >
                       {/* Top Row: Avatar + Info + Shift Rev */}
                       <View style={styles.driverTopRow}>

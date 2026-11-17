@@ -139,7 +139,7 @@ export interface UpdateBankDetailsPayload {
   account_name: string;
   bsb: string;
   account_number: string;
-  bank_name: string;
+  bank_name?: string;
 }
 
 export interface UpdateBankDetailsResponse {

@@ -12,6 +12,8 @@ export interface CashPaymentPayload {
   dropup_location?: string | null;
   pickup?: string | null;
   dropoff?: string | null;
+  payment_attempt_id?: string | null;
+  idempotency_key?: string | null;
 }
 
 export interface CashPaymentData {
@@ -36,6 +38,10 @@ export interface CashPaymentResponse {
   data: CashPaymentData;
 }
 
+let cashPaymentPromise: Promise<CashPaymentData> | null = null;
+let lastCashPaymentKey = '';
+let lastCashPaymentTime = 0;
+
 export const cashPaymentService = {
   /**
    * POST /api/payment/cash
@@ -43,6 +49,20 @@ export const cashPaymentService = {
    * Usable by both Business Owner and Employee.
    */
   recordCashPayment: async (payload: CashPaymentPayload): Promise<CashPaymentData> => {
+    const dedupeKey = `${payload.amount}_${payload.shift_session_id}`;
+    const now = Date.now();
+
+    // Prevent identical cash payment within 5 seconds
+    if (lastCashPaymentKey === dedupeKey && now - lastCashPaymentTime < 5000) {
+      appLogger.warn('CASH_PAYMENT', 'Duplicate cash payment blocked within 5 seconds');
+      throw new Error('A cash payment for this amount was just recorded. Please wait a moment.');
+    }
+
+    if (cashPaymentPromise) {
+      appLogger.warn('CASH_PAYMENT', 'Cash payment already in flight, awaiting current operation');
+      return cashPaymentPromise;
+    }
+
     const cleanPayload: Record<string, any> = {
       amount: payload.amount,
       shift_session_id: payload.shift_session_id,
@@ -70,23 +90,41 @@ export const cashPaymentService = {
     // dropup_location is ONLY sent for custom input (when dropup_id is null)
     cleanPayload.dropup_location = parsedDropId !== null ? null : (payload.dropup_location || null);
 
-    appLogger.info('CASH_PAYMENT', 'Sending cash payment to backend:', cleanPayload);
-    try {
-      const response = await apiClient.post<CashPaymentResponse>('/api/payment/cash', cleanPayload);
-      appLogger.info('CASH_PAYMENT', 'Cash payment response:', response.data);
+    const idempotencyKey =
+      payload.idempotency_key ||
+      payload.payment_attempt_id ||
+      `cash_${payload.shift_session_id}_${payload.amount}_${Date.now()}`;
+    cleanPayload.idempotency_key = idempotencyKey;
 
-      if (!response.data?.status || !response.data?.data) {
-        throw new Error(response.data?.message || 'Failed to record cash payment');
+    cashPaymentPromise = (async () => {
+      appLogger.info('CASH_PAYMENT', 'Sending cash payment to backend:', cleanPayload);
+      try {
+        const response = await apiClient.post<CashPaymentResponse>(
+          '/api/payment/cash',
+          cleanPayload,
+          { headers: { 'Idempotency-Key': String(idempotencyKey) } }
+        );
+        appLogger.info('CASH_PAYMENT', 'Cash payment response:', response.data);
+
+        if (!response.data?.status || !response.data?.data) {
+          throw new Error(response.data?.message || 'Failed to record cash payment');
+        }
+
+        lastCashPaymentKey = dedupeKey;
+        lastCashPaymentTime = Date.now();
+        return response.data.data;
+      } catch (err: any) {
+        const errorMsg =
+          err?.response?.data?.message ||
+          err?.message ||
+          'Cash payment could not be processed.';
+        appLogger.error('CASH_PAYMENT', `Cash payment failed: ${errorMsg}`, err);
+        throw new Error(errorMsg);
+      } finally {
+        cashPaymentPromise = null;
       }
+    })();
 
-      return response.data.data;
-    } catch (err: any) {
-      const errorMsg =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Cash payment could not be processed.';
-      appLogger.error('CASH_PAYMENT', `Cash payment failed: ${errorMsg}`, err);
-      throw new Error(errorMsg);
-    }
+    return cashPaymentPromise;
   },
 };

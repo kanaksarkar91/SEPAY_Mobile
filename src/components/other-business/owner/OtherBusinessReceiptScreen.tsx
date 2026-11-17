@@ -12,18 +12,11 @@ import {
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAuth } from '../../../context/AuthContext';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import HeaderBar from '../../common/HeaderBar';
 import ReceiptShareModal from '../../common/ReceiptShareModal';
 import { normalizeImageUrl } from '../../../utils/assetUtils';
 import { formatSydneyToUserDateTime } from '../../../utils/dateUtils';
-import {
-  dashboardService,
-  onDashboardHeaderSync,
-  getCachedDashboardHeader,
-} from '../../../services/dashboardService';
-import { tokenStorage } from '../../../services/tokenStorage';
 import { receiptService, ReceiptData } from '../../../services/receiptService';
 import { printReceipt, UnifiedReceiptInput } from '../../../services/receiptExportService';
 import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
@@ -31,7 +24,6 @@ import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 export default function OtherBusinessReceiptScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const { showAlert } = useConfirmModal();
 
   const params = useLocalSearchParams<{
@@ -50,6 +42,9 @@ export default function OtherBusinessReceiptScreen() {
     service_charges?: string;
     payment_status?: string;
     reason?: string;
+    address?: string;
+    empId?: string;
+    staffName?: string;
   }>();
 
   const rawAmount = params.amount || '0.00';
@@ -104,56 +99,15 @@ export default function OtherBusinessReceiptScreen() {
       ? formatSydneyToUserDateTime(params.dateStr) || params.dateStr
       : null) || formatSydneyToUserDateTime(new Date());
 
-  const cachedHeader = getCachedDashboardHeader();
-  const cachedUser = tokenStorage.getCachedUser();
-
-  const [extraHeader, setExtraHeader] = useState<{ abn?: string; phone?: string }>({
-    abn:
-      (params.abn && params.abn !== '--' ? params.abn : undefined) ||
-      user?.abn ||
-      cachedHeader?.abn ||
-      cachedUser?.abn,
-    phone:
-      (params.phone && params.phone !== '--' ? params.phone : undefined) ||
-      user?.phone ||
-      cachedHeader?.phone ||
-      cachedUser?.phone,
-  });
-
-  useEffect(() => {
-    const unsub = onDashboardHeaderSync((h) => {
-      if (h.abn || h.phone) {
-        setExtraHeader((prev) => ({
-          abn: h.abn || prev.abn,
-          phone: h.phone || prev.phone,
-        }));
-      }
-    });
-
-    dashboardService
-      .getDashboard()
-      .then((res) => {
-        if (res?.data?.header) {
-          setExtraHeader((prev) => ({
-            abn: res.data.header.abn || prev.abn,
-            phone: res.data.header.phone || prev.phone,
-          }));
-        }
-      })
-      .catch(() => { });
-
-    return () => unsub();
-  }, []);
-
   const businessName =
-    receiptData?.business_name || user?.businessName || user?.name || '--';
+    receiptData?.business_name || (params.businessName && params.businessName !== '--' ? params.businessName : '--');
   const logoUrl = normalizeImageUrl(
-    receiptData?.business_logo || user?.logoUrl || cachedHeader?.logo_url
+    receiptData?.business_logo || params.businessLogo || null
   );
   const address =
-    receiptData?.address || user?.businessAddress || '--';
+    receiptData?.address || (params.address && params.address !== '--' ? params.address : '--');
   const empId =
-    receiptData?.employee_id || user?.empId || '--';
+    receiptData?.employee_id || (params.empId && params.empId !== '--' ? params.empId : '--');
 
   const hasAdBanner = Boolean(receiptData?.ad_banner && receiptData?.banner_image_url);
   const bannerImageUrl = normalizeImageUrl(receiptData?.banner_image_url);
@@ -167,22 +121,16 @@ export default function OtherBusinessReceiptScreen() {
       ? receiptData.amount
       : numericAmount;
 
+  // Authoritative ABN and Phone directly from transaction receipt response (zero fallback leaks)
   const abn =
     receiptData?.abn ||
     (params.abn && params.abn.trim() !== '' && params.abn !== '--' ? params.abn : null) ||
-    extraHeader.abn ||
-    user?.abn ||
-    cachedHeader?.abn ||
-    cachedUser?.abn ||
     '--';
 
   const phone =
     receiptData?.phone_no ||
+    receiptData?.phone ||
     (params.phone && params.phone.trim() !== '' && params.phone !== '--' ? params.phone : null) ||
-    extraHeader.phone ||
-    user?.phone ||
-    cachedHeader?.phone ||
-    cachedUser?.phone ||
     '--';
 
   const cardBrandFinal =
@@ -247,6 +195,12 @@ export default function OtherBusinessReceiptScreen() {
   const reasonVal = receiptData?.reason || params.reason || null;
   const statusInfo = getPaymentStatusInfo(paymentStatusVal, reasonVal);
 
+  const staffName =
+    (receiptData as any)?.employee_name ||
+    (receiptData as any)?.staff_name ||
+    params.staffName ||
+    null;
+
   const receiptInput: UnifiedReceiptInput = useMemo(() => {
     return {
       businessName,
@@ -264,7 +218,7 @@ export default function OtherBusinessReceiptScreen() {
       reason: reasonVal,
       isTaxi: false,
       address,
-      staffName: user?.name,
+      staffName,
       staffEmpId: empId,
       hasAdBanner,
       bannerImageUrl,
@@ -286,7 +240,7 @@ export default function OtherBusinessReceiptScreen() {
     paymentStatusVal,
     reasonVal,
     address,
-    user?.name,
+    staffName,
     empId,
     hasAdBanner,
     bannerImageUrl,

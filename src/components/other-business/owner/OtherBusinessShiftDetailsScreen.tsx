@@ -374,9 +374,21 @@ export default function OtherBusinessShiftDetailsScreen({
     }
   };
 
-  // Open Share format selection modal for a transaction
-  const handleShare = (txn: ShiftDetailsTransactionItem) => {
-    setSelectedTxnForShare(txn);
+  // Open Share format selection modal for a transaction with fresh server receipt
+  const handleShare = async (txn: ShiftDetailsTransactionItem) => {
+    let targetTxn = txn;
+    const payId = txn.receipt?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '');
+    if (payId) {
+      try {
+        const freshReceipt = await receiptService.getReceipt(payId);
+        if (freshReceipt) {
+          targetTxn = { ...targetTxn, receipt: freshReceipt as any };
+        }
+      } catch (fetchErr) {
+        console.warn('[OtherBusinessShiftDetailsScreen] Failed to fetch fresh receipt, using item data:', fetchErr);
+      }
+    }
+    setSelectedTxnForShare(targetTxn);
     setIsShareModalVisible(true);
   };
 

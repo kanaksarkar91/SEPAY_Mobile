@@ -41,6 +41,8 @@ interface TerminalContextValue {
       pickup_location?: string | null;
       dropup_location?: string | null;
       shift_session_id?: number | string | null;
+      payment_attempt_id?: string | null;
+      idempotency_key?: string | null;
     }
   ) => Promise<{ success: boolean; paymentIntent?: any; error?: string }>;
   clearError: () => void;
@@ -195,6 +197,7 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [connectedReader, setConnectedReader] = useState<Reader.Type | null>(null);
   const isPaymentInFlightRef = useRef(false);
+  const lastCompletedPaymentRef = useRef<{ timestamp: number; key: string } | null>(null);
 
   const initAndConnectSimulatedReader = useCallback(async (_forceReconnect?: boolean): Promise<boolean> => {
     setIsConnecting(true);
@@ -231,6 +234,8 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         pickup_location?: string | null;
         dropup_location?: string | null;
         shift_session_id?: number | string | null;
+        payment_attempt_id?: string | null;
+        idempotency_key?: string | null;
       }
     ): Promise<{ success: boolean; paymentIntent?: any; error?: string }> => {
       try {
@@ -238,6 +243,18 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           appLogger.warn('TERMINAL', 'runSimulatedPayment duplicate blocked (already in flight).');
           return { success: false, error: 'A payment transaction is currently in progress.' };
         }
+
+        const dedupeKey = `${amount}_${paymentMethod}_${routeDetails?.shift_session_id || ''}_${routeDetails?.payment_attempt_id || ''}`;
+        const now = Date.now();
+        if (
+          lastCompletedPaymentRef.current &&
+          lastCompletedPaymentRef.current.key === dedupeKey &&
+          now - lastCompletedPaymentRef.current.timestamp < 6000
+        ) {
+          appLogger.warn('TERMINAL', 'Duplicate payment request detected within 6s of recent completion. Aborting duplicate.');
+          return { success: false, error: 'A payment of this amount was just completed. Please wait a moment.' };
+        }
+
         isPaymentInFlightRef.current = true;
         setIsProcessing(true);
         setErrorMessage(null);
@@ -285,6 +302,7 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           setStatusMessage('Payment Successful');
           setIsProcessing(false);
+          lastCompletedPaymentRef.current = { timestamp: Date.now(), key: dedupeKey };
           return {
             success: true,
             paymentIntent: {
@@ -412,6 +430,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const isCollectingRef = useRef(false);
   const permissionsCheckedRef = useRef(false);
   const connectingPromiseRef = useRef<Promise<boolean> | null>(null);
+  const lastCompletedPaymentRef = useRef<{ timestamp: number; key: string } | null>(null);
 
   const {
     initialize,
@@ -424,6 +443,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
     collectPaymentMethod,
     confirmPaymentIntent,
     cancelCollectPaymentMethod,
+    cancelPaymentIntent,
     getConnectionStatus,
     getConnectedReader,
     getPaymentStatus,
@@ -844,6 +864,8 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         pickup_location?: string | null;
         dropup_location?: string | null;
         shift_session_id?: number | string | null;
+        payment_attempt_id?: string | null;
+        idempotency_key?: string | null;
       }
     ): Promise<{ success: boolean; paymentIntent?: any; error?: string }> => {
       try {
@@ -851,6 +873,18 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
           appLogger.warn('TERMINAL', 'runSimulatedPayment duplicate blocked (already in flight).');
           return { success: false, error: 'A payment transaction is currently in progress.' };
         }
+
+        const dedupeKey = `${amount}_${paymentMethod}_${routeDetails?.shift_session_id || ''}_${routeDetails?.payment_attempt_id || ''}`;
+        const now = Date.now();
+        if (
+          lastCompletedPaymentRef.current &&
+          lastCompletedPaymentRef.current.key === dedupeKey &&
+          now - lastCompletedPaymentRef.current.timestamp < 6000
+        ) {
+          appLogger.warn('TERMINAL', 'Duplicate payment request detected within 6s of recent completion. Aborting duplicate.');
+          return { success: false, error: 'A payment of this amount was just completed. Please wait a moment.' };
+        }
+
         isPaymentInFlightRef.current = true;
         setIsProcessing(true);
         setErrorMessage(null);
@@ -907,6 +941,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
           appLogger.info('TERMINAL', 'Card payment confirmed successfully:', confirmedPaymentIntent);
           setStatusMessage('Payment Successful');
           setIsProcessing(false);
+          lastCompletedPaymentRef.current = { timestamp: Date.now(), key: dedupeKey };
           return {
             success: true,
             paymentIntent: {
@@ -928,7 +963,8 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const isReaderReady = await checkIsReaderActuallyConnected();
         if (!isReaderReady) {
           appLogger.info('TERMINAL', 'Reader not verified connected in native SDK, running connect flow...');
-          const connected = await initAndConnectSimulatedReader();
+          setStatusMessage('Connecting card reader...');
+          const connected = await initAndConnectSimulatedReader(true);
           if (!connected) {
             const specificReason = lastReaderErrorRef.current || (
               config.simulatedReader
@@ -1032,6 +1068,17 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (collectError || !collectedIntent) {
           const colErrText = `Card Tap Collection Failed: ${collectError?.message || 'Failed to collect payment method'} (Code: ${collectError?.code || 'UNKNOWN'})`;
           appLogger.error('TERMINAL', colErrText, collectError);
+
+          // Clean up incomplete PaymentIntent on Stripe so it does not stay incomplete in Stripe dashboard
+          if (paymentIntent && typeof cancelPaymentIntent === 'function') {
+            try {
+              appLogger.info('TERMINAL', 'Cancelling incomplete PaymentIntent on Stripe after collection failure/cancellation...');
+              await cancelPaymentIntent({ paymentIntent });
+            } catch (cErr: any) {
+              appLogger.warn('TERMINAL', 'cancelPaymentIntent error on collection failure:', cErr?.message || cErr);
+            }
+          }
+
           throw new Error(colErrText);
         }
         appLogger.info('TERMINAL', 'Payment method collected successfully! Status: ' + collectedIntent.status, {
@@ -1046,6 +1093,17 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (confirmError || !confirmedIntent) {
           const confErrText = `Payment Confirmation Failed: ${confirmError?.message || 'Failed to confirm payment'} (Code: ${confirmError?.code || 'UNKNOWN'})`;
           appLogger.error('TERMINAL', confErrText, confirmError);
+
+          // Clean up incomplete PaymentIntent on Stripe so it does not stay incomplete in Stripe dashboard
+          if (collectedIntent && typeof cancelPaymentIntent === 'function') {
+            try {
+              appLogger.info('TERMINAL', 'Cancelling incomplete PaymentIntent on Stripe after confirmation failure...');
+              await cancelPaymentIntent({ paymentIntent: collectedIntent });
+            } catch (cErr: any) {
+              appLogger.warn('TERMINAL', 'cancelPaymentIntent error on confirmation failure:', cErr?.message || cErr);
+            }
+          }
+
           throw new Error(confErrText);
         }
 
@@ -1061,6 +1119,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         appLogger.info('TERMINAL', '🎉 Payment Successful! Full transaction confirmed by Stripe.');
         setStatusMessage('Payment Successful');
         setIsProcessing(false);
+        lastCompletedPaymentRef.current = { timestamp: Date.now(), key: dedupeKey };
         return { success: true, paymentIntent: confirmedIntent };
       } catch (err: any) {
         const msg = err?.message || 'Payment failed';
@@ -1083,6 +1142,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
       retrievePaymentIntent,
       collectPaymentMethod,
       confirmPaymentIntent,
+      cancelPaymentIntent,
       safeCancelCollectPaymentMethod,
       getPaymentStatus,
     ]

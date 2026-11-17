@@ -714,7 +714,7 @@ export default function OtherBusinessDashboard({
                   key={employee.id}
                   style={styles.employeeCard}
                   activeOpacity={0.8}
-                  onPress={() => handleNavigateToTransactions(employee.emp_id)}
+                // onPress={() => handleNavigateToTransactions(employee.emp_id)}
                 >
                   {/* Avatar + Info + Shift Rev */}
                   <View style={styles.employeeTopRow}>
