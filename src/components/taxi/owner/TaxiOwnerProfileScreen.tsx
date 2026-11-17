@@ -70,7 +70,6 @@ export default function TaxiOwnerProfileScreen() {
   const [editAccountName, setEditAccountName] = useState('');
   const [editBsb, setEditBsb] = useState('');
   const [editAccountNumber, setEditAccountNumber] = useState('');
-  const [editBankName, setEditBankName] = useState('');
   const [isSubmittingBank, setIsSubmittingBank] = useState(false);
 
   // Helper to apply profile data to local state
@@ -86,9 +85,6 @@ export default function TaxiOwnerProfileScreen() {
       if (bd.bsb) {
         setBsbNumber(bd.bsb);
         setEditBsb(bd.bsb);
-      }
-      if (bd.bank_name) {
-        setEditBankName(bd.bank_name);
       }
       if (bd.masked_account_number) {
         setAccountNumber(bd.masked_account_number);
@@ -175,12 +171,10 @@ export default function TaxiOwnerProfileScreen() {
           setEditAccountName(draft.bank_account_name || '');
           setEditBsb(draft.bsb || '');
           setEditAccountNumber(draft.account_number || '');
-          setEditBankName(draft.bank_name || '');
         } else {
           setEditAccountName(data.bank_account_name || '');
           setEditBsb(data.bsb || '');
           setEditAccountNumber(data.account_number || '');
-          setEditBankName(data.bank_name || '');
         }
       }
     } catch (err: any) {
@@ -417,12 +411,11 @@ export default function TaxiOwnerProfileScreen() {
     const trimmedName = editAccountName.trim();
     const trimmedBsb = editBsb.trim();
     const trimmedAcc = editAccountNumber.trim();
-    const trimmedBank = editBankName.trim();
 
-    if (!trimmedName || !trimmedBsb || !trimmedAcc || !trimmedBank) {
+    if (!trimmedName || !trimmedBsb || !trimmedAcc) {
       showAlert({
         title: 'Required Fields',
-        message: 'Please enter Account Name, BSB, Account Number, and Bank Name.',
+        message: 'Please enter Account Name, BSB, and Account Number.',
         type: 'warning',
       });
       return;
@@ -434,7 +427,6 @@ export default function TaxiOwnerProfileScreen() {
         account_name: trimmedName,
         bsb: trimmedBsb,
         account_number: trimmedAcc,
-        bank_name: trimmedBank,
       });
 
       const updated = response.data;
@@ -449,8 +441,8 @@ export default function TaxiOwnerProfileScreen() {
             account_number: updated.account_number || trimmedAcc,
             masked_account_number:
               updated.masked_account_number || `••••  ••••  ${trimmedAcc.slice(-4)}`,
-            bank_name: trimmedBank,
-            bank_badge: updated.bank_badge || prev?.bank_badge || (trimmedBank ? trimmedBank.slice(0, 4).toUpperCase() : ''),
+            bank_name: updated.bank_name || '',
+            bank_badge: updated.bank_badge || prev?.draft_bank_details?.bank_badge || '',
             submitted_ts: new Date().toISOString().replace('T', ' ').substring(0, 19),
           },
         }));
@@ -1014,12 +1006,10 @@ export default function TaxiOwnerProfileScreen() {
                   setEditAccountName(draft.bank_account_name || '');
                   setEditBsb(draft.bsb || '');
                   setEditAccountNumber(draft.account_number || '');
-                  setEditBankName(draft.bank_name || '');
                 } else {
                   setEditAccountName(bankData?.bank_account_name || accountName || '');
                   setEditBsb(bankData?.bsb || bsbNumber || '');
                   setEditAccountNumber(bankData?.account_number || '');
-                  setEditBankName(bankData?.bank_name || u?.bank_details?.bank_name || '');
                 }
                 setIsBankModalVisible(false);
                 setIsUpdateBankModalVisible(true);
@@ -1098,17 +1088,6 @@ export default function TaxiOwnerProfileScreen() {
                   value={editAccountName}
                   onChangeText={setEditAccountName}
                   placeholder="Account Name"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              <View style={styles.sheetInputGroup}>
-                <Text style={styles.sheetInputLabel}>BANK NAME</Text>
-                <TextInput
-                  style={styles.sheetInput}
-                  value={editBankName}
-                  onChangeText={setEditBankName}
-                  placeholder="e.g. National Australia Bank"
                   placeholderTextColor="#94A3B8"
                 />
               </View>

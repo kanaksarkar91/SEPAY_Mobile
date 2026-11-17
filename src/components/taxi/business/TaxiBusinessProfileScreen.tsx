@@ -69,7 +69,6 @@ export default function TaxiBusinessProfileScreen() {
 
   // Form Inputs for Update Modal
   const [editAccountName, setEditAccountName] = useState('');
-  const [editBankName, setEditBankName] = useState('');
   const [editBsb, setEditBsb] = useState('');
   const [editAccountNumber, setEditAccountNumber] = useState('');
 
@@ -85,9 +84,6 @@ export default function TaxiBusinessProfileScreen() {
       if (bd.bsb) {
         setBsbNumber(bd.bsb);
         setEditBsb(bd.bsb);
-      }
-      if (bd.bank_name) {
-        setEditBankName(bd.bank_name);
       }
       if (bd.masked_account_number) {
         setAccountNumber(bd.masked_account_number);
@@ -174,12 +170,10 @@ export default function TaxiBusinessProfileScreen() {
           setEditAccountName(draft.bank_account_name || '');
           setEditBsb(draft.bsb || '');
           setEditAccountNumber(draft.account_number || '');
-          setEditBankName(draft.bank_name || '');
         } else {
           setEditAccountName(data.bank_account_name || '');
           setEditBsb(data.bsb || '');
           setEditAccountNumber(data.account_number || '');
-          setEditBankName(data.bank_name || '');
         }
       }
     } catch (err: any) {
@@ -193,7 +187,6 @@ export default function TaxiBusinessProfileScreen() {
   const session = profileData?.current_session;
 
   const headerBizCategory =
-    u?.user_type_label ||
     u?.header_business_name ||
     u?.business_name ||
     user.businessName ||
@@ -232,9 +225,9 @@ export default function TaxiBusinessProfileScreen() {
 
   const displayTaxiNumber =
     rawTaxiNo !== null &&
-    rawTaxiNo !== undefined &&
-    String(rawTaxiNo).trim() !== '' &&
-    String(rawTaxiNo).trim() !== '--'
+      rawTaxiNo !== undefined &&
+      String(rawTaxiNo).trim() !== '' &&
+      String(rawTaxiNo).trim() !== '--'
       ? String(rawTaxiNo).trim()
       : '';
 
@@ -342,7 +335,7 @@ export default function TaxiBusinessProfileScreen() {
                 icon: 'checkmark-circle-outline',
               });
               await fetchProfile();
-              dashboardService.getDashboard().catch(() => {});
+              dashboardService.getDashboard().catch(() => { });
             } else {
               showAlert({
                 title: 'End Shift Failed',
@@ -394,7 +387,7 @@ export default function TaxiBusinessProfileScreen() {
             icon: 'checkmark-circle-outline',
           });
           await fetchProfile();
-          dashboardService.getDashboard().catch(() => {});
+          dashboardService.getDashboard().catch(() => { });
         } else {
           showAlert({
             title: 'Start Shift Failed',
@@ -423,12 +416,11 @@ export default function TaxiBusinessProfileScreen() {
     const trimmedName = editAccountName.trim();
     const trimmedBsb = editBsb.trim();
     const trimmedAcc = editAccountNumber.trim();
-    const trimmedBank = editBankName.trim();
 
-    if (!trimmedName || !trimmedBsb || !trimmedAcc || !trimmedBank) {
+    if (!trimmedName || !trimmedBsb || !trimmedAcc) {
       showAlert({
         title: 'Required Fields',
-        message: 'Please enter Account Name, BSB, Account Number, and Bank Name.',
+        message: 'Please enter Account Name, BSB, and Account Number.',
         type: 'warning',
       });
       return;
@@ -440,7 +432,6 @@ export default function TaxiBusinessProfileScreen() {
         account_name: trimmedName,
         bsb: trimmedBsb,
         account_number: trimmedAcc,
-        bank_name: trimmedBank,
       });
 
       const updated = response.data;
@@ -455,8 +446,8 @@ export default function TaxiBusinessProfileScreen() {
             account_number: updated.account_number || trimmedAcc,
             masked_account_number:
               updated.masked_account_number || `••••  ••••  ${trimmedAcc.slice(-4)}`,
-            bank_name: trimmedBank,
-            bank_badge: updated.bank_badge || prev?.bank_badge || (trimmedBank ? trimmedBank.slice(0, 4).toUpperCase() : ''),
+            bank_name: updated.bank_name || '',
+            bank_badge: updated.bank_badge || prev?.draft_bank_details?.bank_badge || '',
             submitted_ts: new Date().toISOString().replace('T', ' ').substring(0, 19),
           },
         }));
@@ -772,8 +763,8 @@ export default function TaxiBusinessProfileScreen() {
                     item.key === 'bank_details'
                       ? 'business-outline'
                       : item.key === 'manage_staff'
-                      ? 'people-outline'
-                      : 'swap-horizontal'
+                        ? 'people-outline'
+                        : 'swap-horizontal'
                   }
                   size={20}
                   color="#D97706"
@@ -786,10 +777,10 @@ export default function TaxiBusinessProfileScreen() {
                     (item.key === 'history'
                       ? 'Past shifts & trip tallies'
                       : item.key === 'manage_staff'
-                      ? 'View & manage drivers'
-                      : item.key === 'bank_details'
-                      ? 'Payout account & settlements'
-                      : '')}
+                        ? 'View & manage drivers'
+                        : item.key === 'bank_details'
+                          ? 'Payout account & settlements'
+                          : '')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
@@ -985,22 +976,22 @@ export default function TaxiBusinessProfileScreen() {
                   </Text>
                   {Boolean(
                     bankData?.bank_badge ||
-                      (bankData?.bank_name || u?.bank_details?.bank_name)
+                    (bankData?.bank_name || u?.bank_details?.bank_name)
                   ) && (
-                    <View style={styles.nabBadge}>
-                      <Text style={styles.nabBadgeText}>
-                        {bankData?.bank_badge ||
-                          ((bankData?.bank_name || u?.bank_details?.bank_name)?.includes(
-                            'National Australia Bank'
-                          ) ||
-                          (bankData?.bank_name || u?.bank_details?.bank_name)?.includes('NAB')
-                            ? 'NAB'
-                            : (bankData?.bank_name || u?.bank_details?.bank_name)
+                      <View style={styles.nabBadge}>
+                        <Text style={styles.nabBadgeText}>
+                          {bankData?.bank_badge ||
+                            ((bankData?.bank_name || u?.bank_details?.bank_name)?.includes(
+                              'National Australia Bank'
+                            ) ||
+                              (bankData?.bank_name || u?.bank_details?.bank_name)?.includes('NAB')
+                              ? 'NAB'
+                              : (bankData?.bank_name || u?.bank_details?.bank_name)
                                 ?.slice(0, 4)
                                 ?.toUpperCase())}
-                      </Text>
-                    </View>
-                  )}
+                        </Text>
+                      </View>
+                    )}
                 </View>
               </View>
 
@@ -1051,12 +1042,10 @@ export default function TaxiBusinessProfileScreen() {
                   setEditAccountName(draft.bank_account_name || '');
                   setEditBsb(draft.bsb || '');
                   setEditAccountNumber(draft.account_number || '');
-                  setEditBankName(draft.bank_name || '');
                 } else {
                   setEditAccountName(bankData?.bank_account_name || accountName || '');
                   setEditBsb(bankData?.bsb || bsbNumber || '');
                   setEditAccountNumber(bankData?.account_number || '');
-                  setEditBankName(bankData?.bank_name || u?.bank_details?.bank_name || '');
                 }
                 setIsBankModalVisible(false);
                 setIsUpdateBankModalVisible(true);
@@ -1111,11 +1100,10 @@ export default function TaxiBusinessProfileScreen() {
             </Text>
             <Text style={styles.updateModalDesc}>
               {bankData?.has_pending_approval
-                ? `You have a pending update request submitted${
-                    bankData.draft_bank_details?.submitted_ts
-                      ? ` on ${formatSubmittedDate(bankData.draft_bank_details.submitted_ts)}`
-                      : ''
-                  }. You can make adjustments to the draft details below and re-submit for approval.`
+                ? `You have a pending update request submitted${bankData.draft_bank_details?.submitted_ts
+                  ? ` on ${formatSubmittedDate(bankData.draft_bank_details.submitted_ts)}`
+                  : ''
+                }. You can make adjustments to the draft details below and re-submit for approval.`
                 : 'To protect your payouts, changing bank account details requires approval from your fleet administrator. Once submitted, current daily payouts will pause until the new account is verified.'}
             </Text>
 
@@ -1135,17 +1123,6 @@ export default function TaxiBusinessProfileScreen() {
                   value={editAccountName}
                   onChangeText={setEditAccountName}
                   placeholder="Account Name"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              <View style={styles.sheetInputGroup}>
-                <Text style={styles.sheetInputLabel}>BANK NAME</Text>
-                <TextInput
-                  style={styles.sheetInput}
-                  value={editBankName}
-                  onChangeText={setEditBankName}
-                  placeholder="e.g. National Australia Bank"
                   placeholderTextColor="#94A3B8"
                 />
               </View>

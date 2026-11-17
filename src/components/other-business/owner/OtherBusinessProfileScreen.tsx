@@ -66,7 +66,6 @@ export default function OtherBusinessProfileScreen() {
 
   // Form inputs for update modal
   const [editAccountName, setEditAccountName] = useState('');
-  const [editBankName, setEditBankName] = useState('');
   const [editBsb, setEditBsb] = useState('');
   const [editAccountNumber, setEditAccountNumber] = useState('');
 
@@ -82,9 +81,6 @@ export default function OtherBusinessProfileScreen() {
       if (bd.bsb) {
         setBsbNumber(bd.bsb);
         setEditBsb(bd.bsb);
-      }
-      if (bd.bank_name) {
-        setEditBankName(bd.bank_name);
       }
       if (bd.masked_account_number) {
         setAccountNumber(bd.masked_account_number);
@@ -169,12 +165,10 @@ export default function OtherBusinessProfileScreen() {
           setEditAccountName(draft.bank_account_name || '');
           setEditBsb(draft.bsb || '');
           setEditAccountNumber(draft.account_number || '');
-          setEditBankName(draft.bank_name || '');
         } else {
           setEditAccountName(data.bank_account_name || accountName);
           setEditBsb(data.bsb || bsbNumber);
           setEditAccountNumber(data.account_number || '');
-          setEditBankName(data.bank_name || '');
         }
       }
     } catch (err: any) {
@@ -188,7 +182,6 @@ export default function OtherBusinessProfileScreen() {
     const trimmedName = editAccountName.trim();
     const trimmedBsb = editBsb.trim();
     const trimmedAcc = editAccountNumber.trim();
-    const trimmedBank = editBankName.trim();
 
     if (!trimmedName || !trimmedBsb || !trimmedAcc) {
       showAlert({
@@ -205,7 +198,6 @@ export default function OtherBusinessProfileScreen() {
         account_name: trimmedName,
         bsb: trimmedBsb,
         account_number: trimmedAcc,
-        bank_name: trimmedBank || 'National Australia Bank',
       });
 
       const updated = res.data;
@@ -220,8 +212,8 @@ export default function OtherBusinessProfileScreen() {
             account_number: updated.account_number || trimmedAcc,
             masked_account_number:
               updated.masked_account_number || `•••• •••• ${trimmedAcc.slice(-4)}`,
-            bank_name: trimmedBank || updated.bank_name || '',
-            bank_badge: updated.bank_badge || (trimmedBank ? trimmedBank.slice(0, 4).toUpperCase() : ''),
+            bank_name: updated.bank_name || '',
+            bank_badge: updated.bank_badge || '',
             submitted_ts: new Date().toISOString().slice(0, 19).replace('T', ' '),
           },
         }));
@@ -890,12 +882,10 @@ export default function OtherBusinessProfileScreen() {
                   setEditAccountName(draft.bank_account_name || '');
                   setEditBsb(draft.bsb || '');
                   setEditAccountNumber(draft.account_number || '');
-                  setEditBankName(draft.bank_name || '');
                 } else {
                   setEditAccountName(bankData?.bank_account_name || accountName);
                   setEditBsb(bankData?.bsb || bsbNumber);
                   setEditAccountNumber(bankData?.account_number || '');
-                  setEditBankName(bankData?.bank_name || '');
                 }
                 setIsBankModalVisible(false);
                 setIsUpdateBankModalVisible(true);
@@ -955,17 +945,6 @@ export default function OtherBusinessProfileScreen() {
                   value={editAccountName}
                   onChangeText={setEditAccountName}
                   placeholder="e.g. Habibs"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              <View style={styles.sheetInputGroup}>
-                <Text style={styles.sheetInputLabel}>BANK NAME</Text>
-                <TextInput
-                  style={styles.sheetInput}
-                  value={editBankName}
-                  onChangeText={setEditBankName}
-                  placeholder="e.g. National Australia Bank"
                   placeholderTextColor="#94A3B8"
                 />
               </View>
