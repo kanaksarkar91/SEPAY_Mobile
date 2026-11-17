@@ -186,15 +186,16 @@ export default function OtherBusinessEmployeeDashboard({
     try {
       setIsPrinting(true);
       let targetTxn = txn;
-      if (!targetTxn.receipt) {
-        const pId = targetTxn.txn_id || targetTxn.transaction_id || (targetTxn.id != null ? String(targetTxn.id) : '');
-        if (pId) {
-          try {
-            const fetchedReceipt = await receiptService.getReceipt(pId);
-            if (fetchedReceipt) {
-              targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
-            }
-          } catch {}
+      const pId = targetTxn.txn_id || targetTxn.transaction_id || (targetTxn.id != null ? String(targetTxn.id) : '');
+      if (pId) {
+        try {
+          // Always fetch fresh, authoritative receipt from server
+          const fetchedReceipt = await receiptService.getReceipt(pId);
+          if (fetchedReceipt) {
+            targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
+          }
+        } catch (fetchErr) {
+          console.warn('[OtherBusinessEmployeeDashboard] Failed to fetch fresh receipt, using item data:', fetchErr);
         }
       }
       const receiptInput = buildReceiptInputFromRecentTxn(
@@ -213,15 +214,16 @@ export default function OtherBusinessEmployeeDashboard({
 
   const handleShareReceipt = async (txn: RecentTransactionItem) => {
     let targetTxn = txn;
-    if (!targetTxn.receipt) {
-      const pId = targetTxn.txn_id || targetTxn.transaction_id || (targetTxn.id != null ? String(targetTxn.id) : '');
-      if (pId) {
-        try {
-          const fetchedReceipt = await receiptService.getReceipt(pId);
-          if (fetchedReceipt) {
-            targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
-          }
-        } catch {}
+    const pId = targetTxn.txn_id || targetTxn.transaction_id || (targetTxn.id != null ? String(targetTxn.id) : '');
+    if (pId) {
+      try {
+        // Always fetch fresh, authoritative receipt from server
+        const fetchedReceipt = await receiptService.getReceipt(pId);
+        if (fetchedReceipt) {
+          targetTxn = { ...targetTxn, receipt: fetchedReceipt as any };
+        }
+      } catch (fetchErr) {
+        console.warn('[OtherBusinessEmployeeDashboard] Failed to fetch fresh receipt, using item data:', fetchErr);
       }
     }
     setSelectedTxnForShare(targetTxn);

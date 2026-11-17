@@ -9,6 +9,7 @@ import {
   Platform,
   Image,
   TouchableOpacity,
+  BackHandler,
 } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -125,6 +126,21 @@ export default function ProcessingScreen() {
 
   const isExecutingRef = useRef(false);
   const executedAttemptKeyRef = useRef<string>('');
+  const successNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Intercept Android hardware back button during in-flight payments to prevent accidental jumps to home
+  useEffect(() => {
+    const onBackPress = () => {
+      // If payment is actively executing, intercept and block back navigation
+      if (isExecutingRef.current && !isFailed) {
+        return true;
+      }
+      return false;
+    };
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSub.remove();
+  }, [isFailed]);
 
   // Whenever the processing screen gains focus, prepare for a fresh payment run
   useFocusEffect(
@@ -138,6 +154,10 @@ export default function ProcessingScreen() {
         isExecutingRef.current = false;
         executedAttemptKeyRef.current = '';
         setIsPaymentCompleted(false);
+        if (successNavTimerRef.current) {
+          clearTimeout(successNavTimerRef.current);
+          successNavTimerRef.current = null;
+        }
         if (resetPaymentState) {
           resetPaymentState();
         }
@@ -222,7 +242,7 @@ export default function ProcessingScreen() {
           dashboardService.getDashboard().catch(() => {});
 
           // Transition to Payment Successful screen after brief display of success state
-          setTimeout(() => {
+          successNavTimerRef.current = setTimeout(() => {
             navRouter.replace({
               pathname: '/(tabs)/payment-success',
               params: {
@@ -243,11 +263,27 @@ export default function ProcessingScreen() {
           }, 450);
         } else {
           setIsFailed(true);
-          setErrorReason(result.error || errorMessage || 'Payment could not be completed.');
+          const rawErr = result.error || errorMessage || 'Payment could not be completed.';
+          let friendlyErr = rawErr;
+          if (/customer_cancel|canceled|cancelled|customer canceled/i.test(rawErr)) {
+            friendlyErr = 'Card tap or PIN verification was cancelled. Please tap "Try Again" to retry the payment.';
+          } else if (/incorrect.*pin|wrong.*pin/i.test(rawErr)) {
+            friendlyErr = 'Incorrect card PIN entered. Please tap "Try Again" to retry with the correct PIN.';
+          } else if (/pin.*required|pin.*needed/i.test(rawErr)) {
+            friendlyErr = 'Card PIN required for this transaction. Please tap "Try Again" and enter the PIN, or ask customer to tap via Apple Pay or Google Wallet.';
+          }
+          setErrorReason(friendlyErr);
         }
       } catch (err: any) {
         setIsFailed(true);
-        setErrorReason(err?.message || 'An unexpected error occurred while processing payment.');
+        const rawErr = err?.message || 'An unexpected error occurred while processing payment.';
+        let friendlyErr = rawErr;
+        if (/customer_cancel|canceled|cancelled|customer canceled/i.test(rawErr)) {
+          friendlyErr = 'Card tap or PIN verification was cancelled. Please tap "Try Again" to retry the payment.';
+        } else if (/incorrect.*pin|wrong.*pin/i.test(rawErr)) {
+          friendlyErr = 'Incorrect card PIN entered. Please tap "Try Again" to retry with the correct PIN.';
+        }
+        setErrorReason(friendlyErr);
       } finally {
         isExecutingRef.current = false;
       }
@@ -435,6 +471,14 @@ export default function ProcessingScreen() {
         visible={showLogsModal}
         onClose={() => setShowLogsModal(false)}
       />
+
+      {/* Non-dismissible touch shield while payment is actively in-flight to prevent screen dismissals */}
+      {!isFailed && !isPaymentCompleted && (
+        <View
+          style={StyleSheet.absoluteFill}
+          pointerEvents="auto"
+        />
+      )}
     </View>
   );
 }

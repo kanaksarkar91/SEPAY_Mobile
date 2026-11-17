@@ -21,6 +21,7 @@ import HeaderBar from '../common/HeaderBar';
 import ReceiptShareModal from '../common/ReceiptShareModal';
 import { getPaymentStatusInfo } from '../common/PaymentStatusBadge';
 import { UnifiedReceiptInput, printReceipt } from '../../services/receiptExportService';
+import { receiptService } from '../../services/receiptService';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { ShiftRecord, ShiftTransaction } from '../../types/shift';
 
@@ -340,18 +341,42 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
     }
   };
 
-  // Single trip reprint
+  // Single trip reprint with fresh server receipt
   const handleReprintTrip = async (txn: ShiftTransaction) => {
     try {
-      await printReceipt(getTxnReceiptInput(txn));
+      let targetTxn: any = txn;
+      const pId = targetTxn?.payment_id || targetTxn?.transaction_id || targetTxn?.id;
+      if (pId) {
+        try {
+          const freshReceipt = await receiptService.getReceipt(String(pId));
+          if (freshReceipt) {
+            targetTxn = { ...targetTxn, receipt: freshReceipt };
+          }
+        } catch (fetchErr) {
+          console.warn('[ShiftDetailsScreen] Failed to fetch fresh receipt, using item data:', fetchErr);
+        }
+      }
+      await printReceipt(getTxnReceiptInput(targetTxn));
     } catch (error) {
       console.warn('Print trip error:', error);
     }
   };
 
-  // Single trip share
-  const handleShareTrip = (txn: ShiftTransaction) => {
-    setSelectedTxnForShare(txn);
+  // Single trip share with fresh server receipt
+  const handleShareTrip = async (txn: ShiftTransaction) => {
+    let targetTxn: any = txn;
+    const pId = targetTxn?.payment_id || targetTxn?.transaction_id || targetTxn?.id;
+    if (pId) {
+      try {
+        const freshReceipt = await receiptService.getReceipt(String(pId));
+        if (freshReceipt) {
+          targetTxn = { ...targetTxn, receipt: freshReceipt };
+        }
+      } catch (fetchErr) {
+        console.warn('[ShiftDetailsScreen] Failed to fetch fresh receipt, using item data:', fetchErr);
+      }
+    }
+    setSelectedTxnForShare(targetTxn);
     setIsShareModalVisible(true);
   };
 

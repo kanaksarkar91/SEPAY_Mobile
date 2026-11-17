@@ -19,12 +19,6 @@ import ReceiptShareModal from '../../components/common/ReceiptShareModal';
 import { getPaymentStatusInfo } from '../../components/common/PaymentStatusBadge';
 import { OtherBusinessReceiptScreen } from '../../components/other-business';
 import { normalizeImageUrl } from '../../utils/assetUtils';
-import {
-  dashboardService,
-  onDashboardHeaderSync,
-  getCachedDashboardHeader,
-} from '../../services/dashboardService';
-import { tokenStorage } from '../../services/tokenStorage';
 import { receiptService, ReceiptData } from '../../services/receiptService';
 import { printReceipt, UnifiedReceiptInput } from '../../services/receiptExportService';
 import { formatSydneyToUserDateTime } from '../../utils/dateUtils';
@@ -32,7 +26,6 @@ import { formatSydneyToUserDateTime } from '../../utils/dateUtils';
 function TaxiReceiptScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const { showAlert } = useConfirmModal();
 
   const params = useLocalSearchParams<{
@@ -98,60 +91,19 @@ function TaxiReceiptScreen() {
     }
   }, [rawParamId]);
 
-  const cachedHeader = getCachedDashboardHeader();
-  const cachedUser = tokenStorage.getCachedUser();
-
-  const [extraHeader, setExtraHeader] = useState<{ abn?: string; phone?: string }>({
-    abn:
-      (params.abn && params.abn !== '--' ? params.abn : undefined) ||
-      user?.abn ||
-      cachedHeader?.abn ||
-      cachedUser?.abn,
-    phone:
-      (params.phone && params.phone !== '--' ? params.phone : undefined) ||
-      user?.phone ||
-      cachedHeader?.phone ||
-      cachedUser?.phone,
-  });
-
-  useEffect(() => {
-    const unsub = onDashboardHeaderSync((h) => {
-      if (h.abn || h.phone) {
-        setExtraHeader((prev) => ({
-          abn: h.abn || prev.abn,
-          phone: h.phone || prev.phone,
-        }));
-      }
-    });
-
-    dashboardService
-      .getDashboard()
-      .then((res) => {
-        if (res?.data?.header) {
-          setExtraHeader((prev) => ({
-            abn: res.data.header.abn || prev.abn,
-            phone: res.data.header.phone || prev.phone,
-          }));
-        }
-      })
-      .catch(() => { });
-
-    return () => unsub();
-  }, []);
-
   const businessName =
-    receiptData?.business_name || params.businessName || user?.businessName || user?.name || '--';
+    receiptData?.business_name || (params.businessName && params.businessName !== '--' ? params.businessName : '--');
   const logoUrl = normalizeImageUrl(
-    receiptData?.business_logo || params.businessLogo || user?.logoUrl || cachedHeader?.logo_url
+    receiptData?.business_logo || params.businessLogo || null
   );
   const taxiNumber =
-    receiptData?.taxi_number || receiptData?.taxi_no || params.taxiNumber || user?.taxiNumber || '--';
+    receiptData?.taxi_number || receiptData?.taxi_no || (params.taxiNumber && params.taxiNumber !== '--' ? params.taxiNumber : '--');
   const dcNumber =
-    receiptData?.dc_number || params.dcNumber || (user as any)?.dcNumber || '';
+    receiptData?.dc_number || (params.dcNumber && params.dcNumber !== '--' ? params.dcNumber : '');
   const pickup =
-    receiptData?.pickup_location || receiptData?.pickup || params.pickup || '--';
+    receiptData?.pickup_location || receiptData?.pickup || (params.pickup && params.pickup !== '--' ? params.pickup : '--');
   const dropoff =
-    receiptData?.drop_location || receiptData?.dropoff || params.dropoff || '--';
+    receiptData?.drop_location || receiptData?.dropoff || (params.dropoff && params.dropoff !== '--' ? params.dropoff : '--');
 
   const hasAdBanner = Boolean(receiptData?.ad_banner && receiptData?.banner_image_url);
   const bannerImageUrl = normalizeImageUrl(receiptData?.banner_image_url);
@@ -166,23 +118,16 @@ function TaxiReceiptScreen() {
       ? Number(receiptData.amount)
       : safeNumericAmount;
 
+  // Authoritative ABN and Phone directly from transaction receipt response (zero fallback leaks)
   const abn =
     receiptData?.abn ||
     (params.abn && params.abn.trim() !== '' && params.abn !== '--' ? params.abn : null) ||
-    extraHeader.abn ||
-    user?.abn ||
-    cachedHeader?.abn ||
-    cachedUser?.abn ||
     '--';
 
   const phone =
     receiptData?.phone_no ||
     receiptData?.phone ||
     (params.phone && params.phone.trim() !== '' && params.phone !== '--' ? params.phone : null) ||
-    extraHeader.phone ||
-    user?.phone ||
-    cachedHeader?.phone ||
-    cachedUser?.phone ||
     '--';
 
   const rawTypeStr = `${receiptData?.payment_type || ''} ${receiptData?.payment_method || ''} ${paramMethod}`.toLowerCase();

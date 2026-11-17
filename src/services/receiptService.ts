@@ -54,22 +54,25 @@ export const receiptService = {
   /**
    * GET /api/receipt/:id
    * Fetches the official server-verified receipt by payment intent ID or transaction ID.
+   * Always fetches fresh data from the server to prevent stale cached info across transactions.
    */
-  getReceipt: async (paymentId: string): Promise<ReceiptData> => {
+  getReceipt: async (paymentId: string, forceFresh: boolean = true): Promise<ReceiptData> => {
     if (!paymentId || paymentId.trim() === '' || paymentId === '--') {
       throw new Error('Invalid payment ID for receipt lookup');
     }
 
     const cleanId = paymentId.trim();
 
-    // Check memory cache first
-    const cached = receiptCache.get(cleanId);
-    if (cached) {
-      return cached;
+    // Only use memory cache if caller explicitly requested non-fresh lookup and cache exists
+    if (!forceFresh) {
+      const cached = receiptCache.get(cleanId);
+      if (cached) {
+        return cached;
+      }
     }
 
     try {
-      appLogger.info('RECEIPT_SERVICE', `Fetching receipt for ID: ${cleanId}`);
+      appLogger.info('RECEIPT_SERVICE', `Fetching fresh receipt from server for ID: ${cleanId}`);
       const response = await apiClient.get<ReceiptApiResponse>(`/api/receipt/${cleanId}`);
 
       if (!response.data?.status || !response.data?.data) {
@@ -83,12 +86,20 @@ export const receiptService = {
       if (receipt.banner_image_url) {
         receipt.banner_image_url = normalizeImageUrl(receipt.banner_image_url);
       }
+      // Update cache with the freshest server response
       receiptCache.set(cleanId, receipt);
       if (receipt.payment_id && receipt.payment_id.trim() !== cleanId) {
         receiptCache.set(receipt.payment_id.trim(), receipt);
       }
       return receipt;
     } catch (err: any) {
+      // In case of complete network outage, attempt cache as last-ditch fallback
+      const fallback = receiptCache.get(cleanId);
+      if (fallback) {
+        appLogger.warn('RECEIPT_SERVICE', `Network request failed, returning cached receipt for ${cleanId}`);
+        return fallback;
+      }
+
       const errMsg =
         err?.response?.data?.message ||
         err?.message ||

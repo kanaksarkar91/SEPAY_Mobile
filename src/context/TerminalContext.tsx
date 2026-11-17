@@ -424,6 +424,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
     collectPaymentMethod,
     confirmPaymentIntent,
     cancelCollectPaymentMethod,
+    cancelPaymentIntent,
     getConnectionStatus,
     getConnectedReader,
     getPaymentStatus,
@@ -928,7 +929,8 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const isReaderReady = await checkIsReaderActuallyConnected();
         if (!isReaderReady) {
           appLogger.info('TERMINAL', 'Reader not verified connected in native SDK, running connect flow...');
-          const connected = await initAndConnectSimulatedReader();
+          setStatusMessage('Connecting card reader...');
+          const connected = await initAndConnectSimulatedReader(true);
           if (!connected) {
             const specificReason = lastReaderErrorRef.current || (
               config.simulatedReader
@@ -1032,6 +1034,17 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (collectError || !collectedIntent) {
           const colErrText = `Card Tap Collection Failed: ${collectError?.message || 'Failed to collect payment method'} (Code: ${collectError?.code || 'UNKNOWN'})`;
           appLogger.error('TERMINAL', colErrText, collectError);
+
+          // Clean up incomplete PaymentIntent on Stripe so it does not stay incomplete in Stripe dashboard
+          if (paymentIntent && typeof cancelPaymentIntent === 'function') {
+            try {
+              appLogger.info('TERMINAL', 'Cancelling incomplete PaymentIntent on Stripe after collection failure/cancellation...');
+              await cancelPaymentIntent({ paymentIntent });
+            } catch (cErr: any) {
+              appLogger.warn('TERMINAL', 'cancelPaymentIntent error on collection failure:', cErr?.message || cErr);
+            }
+          }
+
           throw new Error(colErrText);
         }
         appLogger.info('TERMINAL', 'Payment method collected successfully! Status: ' + collectedIntent.status, {
@@ -1046,6 +1059,17 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (confirmError || !confirmedIntent) {
           const confErrText = `Payment Confirmation Failed: ${confirmError?.message || 'Failed to confirm payment'} (Code: ${confirmError?.code || 'UNKNOWN'})`;
           appLogger.error('TERMINAL', confErrText, confirmError);
+
+          // Clean up incomplete PaymentIntent on Stripe so it does not stay incomplete in Stripe dashboard
+          if (collectedIntent && typeof cancelPaymentIntent === 'function') {
+            try {
+              appLogger.info('TERMINAL', 'Cancelling incomplete PaymentIntent on Stripe after confirmation failure...');
+              await cancelPaymentIntent({ paymentIntent: collectedIntent });
+            } catch (cErr: any) {
+              appLogger.warn('TERMINAL', 'cancelPaymentIntent error on confirmation failure:', cErr?.message || cErr);
+            }
+          }
+
           throw new Error(confErrText);
         }
 
@@ -1083,6 +1107,7 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
       retrievePaymentIntent,
       collectPaymentMethod,
       confirmPaymentIntent,
+      cancelPaymentIntent,
       safeCancelCollectPaymentMethod,
       getPaymentStatus,
     ]
