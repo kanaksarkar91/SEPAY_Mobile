@@ -15,6 +15,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -43,6 +44,7 @@ import { useConfirmModal } from '../../../context/ConfirmModalContext';
 import { DiagnosticLogsModal } from '../../common/DiagnosticLogsModal';
 
 export default function TaxiOwnerProfileScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuth();
   const { showConfirm, showAlert } = useConfirmModal();
@@ -817,7 +819,13 @@ export default function TaxiOwnerProfileScreen() {
           style={styles.modalBackdrop}
           onPress={() => setIsBankModalVisible(false)}
         >
-          <Pressable style={styles.bankModalSheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={[
+              styles.bankModalSheet,
+              { paddingBottom: Math.max(insets.bottom, 24) + 16 },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.modalDragHandle} />
 
             {/* Header: Bank Badge + Verified + Close Button */}
@@ -1068,14 +1076,23 @@ export default function TaxiOwnerProfileScreen() {
               setIsUpdateBankModalVisible(false);
             }}
           >
-            <Pressable style={styles.updateModalSheet} onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={[
+                styles.updateModalSheet,
+                { paddingBottom: Math.max(insets.bottom, 16) },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
               <View style={styles.modalDragHandle} />
 
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 bounces={false}
-                contentContainerStyle={styles.updateModalScrollContent}
+                contentContainerStyle={[
+                  styles.updateModalScrollContent,
+                  { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+                ]}
               >
                 {/* Warning / Sync Icon Badge - hide when typing so inputs aren't pushed down */}
                 {!isKeyboardVisible && (
@@ -1881,13 +1898,18 @@ const styles = StyleSheet.create({
   updateBankRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
-    paddingVertical: 6,
+    justifyContent: 'center',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 14,
+    paddingVertical: 13,
+    marginTop: 10,
   },
   updateBankText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#B45309',
   },
 
   /* ── 2. Request Bank Details Update Sheet Styles ── */
