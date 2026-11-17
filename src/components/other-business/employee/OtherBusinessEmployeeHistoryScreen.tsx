@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import HeaderBar from '../../common/HeaderBar';
@@ -50,6 +50,8 @@ export default function OtherBusinessEmployeeHistoryScreen({
   empId = '',
   onSelectShift,
 }: OtherBusinessEmployeeHistoryScreenProps) {
+  const insets = useSafeAreaInsets();
+  const listBottomPadding = Math.max(insets.bottom, 16) + 96;
   const PAGE_LIMIT = 10;
 
   // API State
@@ -346,9 +348,8 @@ export default function OtherBusinessEmployeeHistoryScreen({
   const displayEmpId = shiftHistoryData?.header?.emp_id || empId;
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.root}>
-        <StatusBar style="dark" />
+    <View style={styles.root}>
+      <StatusBar style="dark" />
 
         {/* ── HEADER BAR (Centered Title & EMP ID Subtitle) ── */}
         <HeaderBar
@@ -368,7 +369,7 @@ export default function OtherBusinessEmployeeHistoryScreen({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: listBottomPadding }]}
           onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}
         refreshControl={
@@ -746,7 +747,6 @@ export default function OtherBusinessEmployeeHistoryScreen({
         onApply={handleApplyDateRange}
       />
     </View>
-  </TouchableWithoutFeedback>
   );
 }
 

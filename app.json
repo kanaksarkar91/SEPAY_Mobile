@@ -24,6 +24,7 @@
     "android": {
       "package": "com.syscentric.taptopay",
       "versionCode": 7,
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
