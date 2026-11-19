@@ -49,3 +49,7 @@ build/
 *.aar
 .gradle/
 
+# assets
+playstore-assets/
+
+

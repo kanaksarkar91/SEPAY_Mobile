@@ -57,6 +57,7 @@ export default function ReceiptShareModal({
 
   const receiptCardRef = useRef<View>(null);
   const adBannerCardRef = useRef<View>(null);
+  const thermalReceiptCardRef = useRef<View>(null);
 
   if (!receiptInput) {
     return null;
@@ -67,10 +68,13 @@ export default function ReceiptShareModal({
   const logoUrl = normalizeImageUrl(receiptInput.businessLogo);
   const abnVal = receiptInput.abn || '--';
   const phoneVal = receiptInput.phone || '--';
-  const isTaxi = Boolean(receiptInput.isTaxi || receiptInput.taxiNumber);
-  const taxiNo = receiptInput.taxiNumber || '';
-  const dcNo = receiptInput.dcNumber || '';
-  const staff = receiptInput.staffName || 'Staff Member';
+  const isTaxi =
+    receiptInput.isTaxi !== undefined
+      ? Boolean(receiptInput.isTaxi)
+      : Boolean(receiptInput.taxiNumber && receiptInput.taxiNumber !== '--');
+  const taxiNo = receiptInput.taxiNumber && receiptInput.taxiNumber !== '--' ? receiptInput.taxiNumber : '';
+  const dcNo = receiptInput.dcNumber && receiptInput.dcNumber !== '--' ? receiptInput.dcNumber : '';
+  const staff = receiptInput.staffName || '';
   const staffCode = receiptInput.staffEmpId || '';
   const pickup = receiptInput.pickup || '';
   const dropoff = receiptInput.dropoff || '';
@@ -104,13 +108,13 @@ export default function ReceiptShareModal({
       setIsSharing(true);
       setSharingFormat('thermal');
 
-      if (!receiptCardRef.current) {
+      if (!thermalReceiptCardRef.current) {
         throw new Error('Receipt view is not ready');
       }
 
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      const capturePromise = captureRef(receiptCardRef, {
+      const capturePromise = captureRef(thermalReceiptCardRef, {
         format: 'png',
         quality: 1.0,
         result: 'base64',
@@ -121,7 +125,7 @@ export default function ReceiptShareModal({
       );
       const base64Png = await Promise.race([capturePromise, timeoutPromise]);
 
-      const res = await printerService.printReceiptImage(base64Png, 3);
+      const res = await printerService.printReceiptImage(base64Png);
       if (!res.success) {
         if (
           res.error?.includes('Printer Settings') ||
@@ -501,21 +505,23 @@ export default function ReceiptShareModal({
           {/* Main Receipt Card to Capture */}
           <View style={styles.offscreenCardWrap} collapsable={false}>
             <View ref={receiptCardRef} collapsable={false} style={styles.shareReceiptCard}>
-              <View style={styles.shareBadgeWrap}>
-                {logoUrl ? (
-                  <Image
-                    source={{ uri: logoUrl }}
-                    style={styles.shareLogoImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Image
-                    source={require('../../../assets/taxi-logo.png')}
-                    style={styles.shareLogoImage}
-                    resizeMode="cover"
-                  />
-                )}
-              </View>
+              {(logoUrl || isTaxi) && (
+                <View style={styles.shareBadgeWrap}>
+                  {logoUrl ? (
+                    <Image
+                      source={{ uri: logoUrl }}
+                      style={styles.shareLogoImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Image
+                      source={require('../../../assets/taxi-logo.png')}
+                      style={styles.shareLogoImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                </View>
+              )}
 
               <Text style={styles.shareBizName}>{biz}</Text>
               <Text style={styles.shareTaxInvoiceHeading}>TAX INVOICE</Text>
@@ -527,12 +533,12 @@ export default function ReceiptShareModal({
                   TAXI NO.: {taxiNo || '--'}
                   {dcNo ? `   DC: ${dcNo}` : ''}
                 </Text>
-              ) : (
+              ) : staff || staffCode ? (
                 <Text style={styles.shareBizMeta}>
-                  EMP: {staff}
-                  {staffCode ? ` (${staffCode})` : ''}
+                  EMP: {staff || staffCode}
+                  {staff && staffCode ? ` (${staffCode})` : ''}
                 </Text>
-              )}
+              ) : null}
               {receiptInput.address ? (
                 <Text style={styles.shareBizMeta}>{receiptInput.address}</Text>
               ) : null}
@@ -719,6 +725,168 @@ export default function ReceiptShareModal({
               </View>
             </View>
           )}
+
+          {/* Dedicated 58mm Bluetooth Thermal Printer Card (100% Monochrome, Zero Dot Artifacts, High Contrast) */}
+          <View style={styles.offscreenCardWrap} collapsable={false}>
+            <View ref={thermalReceiptCardRef} collapsable={false} style={styles.thermalReceiptCard}>
+              {/* Logo */}
+              {(logoUrl || isTaxi) && (
+                <View style={styles.thermalLogoWrap}>
+                  {logoUrl ? (
+                    <Image
+                      source={{ uri: logoUrl }}
+                      style={styles.thermalLogoImage}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <Image
+                      source={require('../../../assets/taxi-logo.png')}
+                      style={styles.thermalLogoImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              )}
+
+              <Text style={styles.thermalBizName}>{biz.toUpperCase()}</Text>
+              <Text style={styles.thermalTaxInvoiceHeading}>TAX INVOICE</Text>
+              <Text style={styles.thermalBizMeta}>
+                ABN: {abnVal}   PH: {phoneVal}
+              </Text>
+              {isTaxi ? (
+                <Text style={styles.thermalBizMeta}>
+                  TAXI NO: {taxiNo || '--'}
+                  {dcNo ? `   DC: ${dcNo}` : ''}
+                </Text>
+              ) : staff || staffCode ? (
+                <Text style={styles.thermalBizMeta}>
+                  EMP: {staff || staffCode}
+                  {staff && staffCode ? ` (${staffCode})` : ''}
+                </Text>
+              ) : null}
+              {receiptInput.address ? (
+                <Text style={styles.thermalBizMeta}>{receiptInput.address}</Text>
+              ) : null}
+
+              <View style={styles.thermalDivider} />
+
+              <View style={styles.thermalAmountSection}>
+                <Text style={styles.thermalAmountLabel}>
+                  {statusInfo.isFailed
+                    ? 'TOTAL AMOUNT (FAILED)'
+                    : statusInfo.isPending
+                      ? 'TOTAL AMOUNT (PENDING)'
+                      : 'TOTAL PAID (INC GST)'}
+                </Text>
+                <View style={styles.thermalAmountWrap}>
+                  <Text style={styles.thermalDollarSign}>$ </Text>
+                  <Text style={styles.thermalAmountInt}>{whole}</Text>
+                  <Text style={styles.thermalAmountDec}>.{cents}</Text>
+                </View>
+
+                {/* Status Box: Solid clean border, pure white background, bold black text (NO DITHER DOTS) */}
+                <View style={styles.thermalStatusBox}>
+                  <View style={styles.thermalStatusDot} />
+                  <Text style={styles.thermalStatusText}>
+                    {statusInfo.isFailed ? 'FAILED' : statusInfo.isPending ? 'PENDING' : 'PAID'}
+                  </Text>
+                </View>
+
+                {/* Reason callout if failed or pending */}
+                {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                  <View style={styles.thermalReasonBox}>
+                    <Text style={styles.thermalReasonText}>
+                      <Text style={{ fontWeight: '900' }}>Reason: </Text>
+                      {statusInfo.reason}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.thermalDivider} />
+
+              {hasRoute && (
+                <>
+                  <View style={styles.thermalRouteSection}>
+                    <View style={styles.thermalRouteCol}>
+                      <Text style={styles.thermalRouteLabel}>PICKUP</Text>
+                      <Text style={styles.thermalRouteVal}>{pickup || '--'}</Text>
+                    </View>
+                    <Text style={styles.thermalRouteArrow}>→</Text>
+                    <View style={[styles.thermalRouteCol, { alignItems: 'flex-end' }]}>
+                      <Text style={[styles.thermalRouteLabel, { textAlign: 'right' }]}>DROP OFF</Text>
+                      <Text style={[styles.thermalRouteVal, { textAlign: 'right' }]}>{dropoff || '--'}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.thermalDivider} />
+                </>
+              )}
+
+              {hasBk && bkBase !== null && (
+                <>
+                  <View style={styles.thermalBreakdownBox}>
+                    <Text style={styles.thermalBreakdownHdr}>PAYMENT BREAKDOWN</Text>
+                    <View style={styles.thermalBreakdownRow}>
+                      <Text style={styles.thermalBreakdownLbl}>Base Amount</Text>
+                      <Text style={styles.thermalBreakdownVal}>${Number(bkBase || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.thermalBreakdownRow}>
+                      <Text style={styles.thermalBreakdownLbl}>Service Fee</Text>
+                      <Text style={styles.thermalBreakdownVal}>${Number(bkFee || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={[styles.thermalDivider, { marginVertical: 4 }]} />
+                    <View style={styles.thermalBreakdownRow}>
+                      <Text style={styles.thermalBreakdownTotalLbl}>Total (INC GST)</Text>
+                      <Text style={styles.thermalBreakdownTotalVal}>${Number(bkTotal || 0).toFixed(2)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.thermalDivider} />
+                </>
+              )}
+
+              <View style={styles.thermalMetaList}>
+                <View style={styles.thermalMetaRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.thermalMetaLabel}>Date & Time</Text>
+                    <Text style={styles.thermalMetaValue}>{dt}</Text>
+                  </View>
+                  <View style={styles.thermalMetaBadge}>
+                    <Text style={styles.thermalMetaBadgeText}>
+                      {isCash ? 'CASH' : isTap ? 'TAP & GO' : 'CARD'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.thermalMetaRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.thermalMetaLabel}>Payment Method</Text>
+                    <Text style={styles.thermalMetaValue}>{paymentMethodLabel}</Text>
+                  </View>
+                  <View style={styles.thermalMetaBadge}>
+                    <Text style={styles.thermalMetaBadgeText}>{cardBrand}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.thermalMetaRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.thermalMetaLabel}>
+                      {isCash ? 'Receipt ID' : 'Payment ID'}
+                    </Text>
+                    <Text style={styles.thermalMetaValueSmall}>{payId}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.thermalDivider} />
+
+              <View style={styles.thermalFooter}>
+                <Text style={styles.thermalThankYou}>
+                  THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
+                </Text>
+                <Text style={styles.thermalPoweredBy}>POWERED BY SE PAY</Text>
+              </View>
+            </View>
+          </View>
         </View>
       )}
 
@@ -1416,5 +1584,271 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#475569',
+  },
+
+  /* Dedicated 58mm Thermal Receipt Styles (Pure Monochrome, High Contrast) */
+  thermalReceiptCard: {
+    width: 384,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 28,
+    alignItems: 'center',
+  },
+  thermalLogoWrap: {
+    width: 60,
+    height: 60,
+    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thermalLogoImage: {
+    width: 56,
+    height: 56,
+  },
+  thermalBizName: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#000000',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  thermalTaxInvoiceHeading: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 2.5,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  thermalBizMeta: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000000',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  thermalDivider: {
+    width: '100%',
+    borderBottomWidth: 1.5,
+    borderColor: '#000000',
+    borderStyle: 'dashed',
+    marginVertical: 8,
+  },
+  thermalAmountSection: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  thermalAmountLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  thermalAmountWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  thermalDollarSign: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#000000',
+    marginTop: 6,
+  },
+  thermalAmountInt: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#000000',
+    lineHeight: 46,
+  },
+  thermalAmountDec: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#000000',
+    marginTop: 4,
+  },
+  thermalStatusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#000000',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    backgroundColor: '#FFFFFF',
+    marginTop: 4,
+    gap: 6,
+  },
+  thermalStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#000000',
+  },
+  thermalStatusText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.8,
+  },
+  thermalReasonBox: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#000000',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
+  },
+  thermalReasonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#000000',
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  thermalRouteSection: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginVertical: 2,
+  },
+  thermalRouteCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  thermalRouteLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  thermalRouteVal: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#000000',
+    marginTop: 2,
+    lineHeight: 18,
+    flexWrap: 'wrap',
+  },
+  thermalRouteArrow: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#000000',
+    paddingHorizontal: 8,
+  },
+  thermalBreakdownBox: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#000000',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 4,
+  },
+  thermalBreakdownHdr: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  thermalBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  thermalBreakdownLbl: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  thermalBreakdownVal: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#000000',
+  },
+  thermalBreakdownTotalLbl: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  thermalBreakdownTotalVal: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  thermalMetaList: {
+    width: '100%',
+    marginTop: 4,
+    gap: 6,
+  },
+  thermalMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  thermalMetaLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.3,
+  },
+  thermalMetaValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#000000',
+    marginTop: 1,
+  },
+  thermalMetaValueSmall: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#000000',
+    marginTop: 1,
+  },
+  thermalMetaBadge: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#000000',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  thermalMetaBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  thermalFooter: {
+    marginTop: 6,
+    paddingTop: 6,
+    alignItems: 'center',
+    width: '100%',
+  },
+  thermalThankYou: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.4,
+    marginBottom: 3,
+    textAlign: 'center',
+  },
+  thermalPoweredBy: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#000000',
+    letterSpacing: 1,
+    marginBottom: 2,
   },
 });

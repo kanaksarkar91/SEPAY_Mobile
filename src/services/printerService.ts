@@ -28,6 +28,7 @@ export interface PrinterServiceState {
 }
 
 const SAVED_PRINTER_KEY = 'sepay_saved_printer';
+const SAVED_DENSITY_KEY = 'sepay_printer_density';
 
 class PrinterService {
   private state: PrinterServiceState = {
@@ -44,6 +45,7 @@ class PrinterService {
   private listeners: Set<(state: PrinterServiceState) => void> = new Set();
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
   private sdkInitialized = false;
+  private savedDensity = 5; // Default to 5 (Darkest / highest thermal contrast)
 
   private connSub: Subscription | null = null;
   private printSub: Subscription | null = null;
@@ -52,6 +54,7 @@ class PrinterService {
   constructor() {
     this.checkAvailability();
     this.loadSavedDevice();
+    this.loadSavedDensity();
   }
 
   private updateState(partial: Partial<PrinterServiceState>) {
@@ -170,6 +173,35 @@ class PrinterService {
       console.warn('[PrinterService] Error reading saved printer:', e);
     }
     return null;
+  }
+
+  public async loadSavedDensity(): Promise<number> {
+    try {
+      const raw = await SecureStore.getItemAsync(SAVED_DENSITY_KEY);
+      if (raw) {
+        const val = parseInt(raw, 10);
+        if ([2, 3, 5].includes(val)) {
+          this.savedDensity = val;
+          return val;
+        }
+      }
+    } catch (e) {
+      console.warn('[PrinterService] Error reading saved density:', e);
+    }
+    return this.savedDensity;
+  }
+
+  public async getSavedDensity(): Promise<number> {
+    return this.loadSavedDensity();
+  }
+
+  public async setDensity(density: number): Promise<void> {
+    this.savedDensity = density;
+    try {
+      await SecureStore.setItemAsync(SAVED_DENSITY_KEY, density.toString());
+    } catch (e) {
+      console.warn('[PrinterService] Error saving density:', e);
+    }
   }
 
   public async saveDevice(device: BlePrinterDevice | null): Promise<void> {
@@ -365,7 +397,7 @@ class PrinterService {
    */
   public async printReceiptImage(
     base64Data: string,
-    density: number = 3
+    density?: number
   ): Promise<{ success: boolean; error?: string }> {
     if (!this.isAvailable()) {
       return { success: false, error: 'Thermal printing is only supported on Android physical devices.' };
@@ -388,11 +420,12 @@ class PrinterService {
       };
     }
 
+    const targetDensity = density ?? (await this.getSavedDensity());
     this.updateState({ isPrinting: true, printProgress: 0 });
 
     try {
       const cleanBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-      const res = await TinyPrinter.printImageBase64(cleanBase64, target.address, target.name, density);
+      const res = await TinyPrinter.printImageBase64(cleanBase64, target.address, target.name, targetDensity);
       this.updateState({ isPrinting: false, printProgress: 1.0 });
       return { success: res.success };
     } catch (err: any) {

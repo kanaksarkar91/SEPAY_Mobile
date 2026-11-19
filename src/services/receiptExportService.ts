@@ -104,10 +104,13 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   const logoUrl = normalizeImageUrl(input.businessLogo);
   const abnVal = input.abn || '--';
   const phoneVal = input.phone || '--';
-  const isTaxi = Boolean(input.isTaxi || input.taxiNumber);
-  const taxiNo = input.taxiNumber || '';
-  const dcNo = input.dcNumber || '';
-  const staff = input.staffName || 'Staff Member';
+  const isTaxi =
+    input.isTaxi !== undefined
+      ? Boolean(input.isTaxi)
+      : Boolean(input.taxiNumber && input.taxiNumber !== '--');
+  const taxiNo = input.taxiNumber && input.taxiNumber !== '--' ? input.taxiNumber : '';
+  const dcNo = input.dcNumber && input.dcNumber !== '--' ? input.dcNumber : '';
+  const staff = input.staffName || '';
   const staffCode = input.staffEmpId || '';
   const pickup = input.pickup || '';
   const dropoff = input.dropoff || '';
@@ -233,13 +236,14 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   ${hasAd && bannerUrl ? `
   <div class="page-container">
     <div class="receipt-card-70">
+      ${(logoUrl || (isTaxi && taxiLogoUri)) ? `
       <div class="logo-badge">
-        ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : taxiLogoUri ? `<img src="${taxiLogoUri}" alt="Taxi" />` : `<div style="font-size: 22px;">🚕</div>`}
-      </div>
+        ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : `<img src="${taxiLogoUri}" alt="Taxi" />`}
+      </div>` : ''}
       <div class="biz-name">${biz}</div>
       <div class="tax-invoice-heading">TAX INVOICE</div>
       <div class="biz-meta">ABN: ${abnVal} • PH: ${phoneVal}</div>
-      ${isTaxi ? `<div class="biz-meta">TAXI NO.: ${taxiNo}${dcNo ? ' &nbsp;&nbsp; DC: ' + dcNo : ''}</div>` : `<div class="biz-meta">EMP: ${staff}${staffCode ? ' (' + staffCode + ')' : ''}</div>`}
+      ${isTaxi ? `<div class="biz-meta">TAXI NO.: ${taxiNo}${dcNo ? ' &nbsp;&nbsp; DC: ' + dcNo : ''}</div>` : (staff || staffCode) ? `<div class="biz-meta">EMP: ${staff}${staffCode ? ' (' + staffCode + ')' : ''}</div>` : ''}
       ${input.address ? `<div class="biz-meta">${input.address}</div>` : ''}
 
       <div class="total-paid-label">${statusLabel}</div>
@@ -298,13 +302,14 @@ export async function generateReceiptHtml(input: UnifiedReceiptInput): Promise<s
   </div>
   ` : `
   <div class="receipt-card">
+    ${(logoUrl || (isTaxi && taxiLogoUri)) ? `
     <div class="logo-badge">
-      ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : taxiLogoUri ? `<img src="${taxiLogoUri}" alt="Taxi" />` : `<div style="font-size: 22px;">🚕</div>`}
-    </div>
+      ${logoUrl ? `<img src="${logoUrl}" alt="Logo" />` : `<img src="${taxiLogoUri}" alt="Taxi" />`}
+    </div>` : ''}
     <div class="biz-name">${biz}</div>
     <div class="tax-invoice-heading">TAX INVOICE</div>
     <div class="biz-meta">ABN: ${abnVal} • PH: ${phoneVal}</div>
-    ${isTaxi ? `<div class="biz-meta">TAXI NO.: ${taxiNo}${dcNo ? ' &nbsp;&nbsp; DC: ' + dcNo : ''}</div>` : `<div class="biz-meta">EMP: ${staff}${staffCode ? ' (' + staffCode + ')' : ''}</div>`}
+    ${isTaxi ? `<div class="biz-meta">TAXI NO.: ${taxiNo}${dcNo ? ' &nbsp;&nbsp; DC: ' + dcNo : ''}</div>` : (staff || staffCode) ? `<div class="biz-meta">EMP: ${staff}${staffCode ? ' (' + staffCode + ')' : ''}</div>` : ''}
     ${input.address ? `<div class="biz-meta">${input.address}</div>` : ''}
 
     <div class="total-paid-label">${statusLabel}</div>
