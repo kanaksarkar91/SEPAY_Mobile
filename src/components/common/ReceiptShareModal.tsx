@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -35,12 +35,14 @@ export interface ReceiptShareModalProps {
   visible: boolean;
   onClose: () => void;
   receiptInput: UnifiedReceiptInput | null;
+  autoPrintThermal?: boolean;
 }
 
 export default function ReceiptShareModal({
   visible,
   onClose,
   receiptInput,
+  autoPrintThermal = false,
 }: ReceiptShareModalProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -59,39 +61,35 @@ export default function ReceiptShareModal({
   const adBannerCardRef = useRef<View>(null);
   const thermalReceiptCardRef = useRef<View>(null);
 
-  if (!receiptInput) {
-    return null;
-  }
-
-  const { whole, cents } = formatReceiptAmount(receiptInput.amount);
-  const biz = receiptInput.businessName || '--';
-  const logoUrl = normalizeImageUrl(receiptInput.businessLogo);
-  const abnVal = receiptInput.abn || '--';
-  const phoneVal = receiptInput.phone || '--';
+  const { whole, cents } = formatReceiptAmount(receiptInput?.amount);
+  const biz = receiptInput?.businessName || '--';
+  const logoUrl = normalizeImageUrl(receiptInput?.businessLogo);
+  const abnVal = receiptInput?.abn || '--';
+  const phoneVal = receiptInput?.phone || '--';
   const isTaxi =
-    receiptInput.isTaxi !== undefined
+    receiptInput?.isTaxi !== undefined
       ? Boolean(receiptInput.isTaxi)
-      : Boolean(receiptInput.taxiNumber && receiptInput.taxiNumber !== '--');
-  const taxiNo = receiptInput.taxiNumber && receiptInput.taxiNumber !== '--' ? receiptInput.taxiNumber : '';
-  const dcNo = receiptInput.dcNumber && receiptInput.dcNumber !== '--' ? receiptInput.dcNumber : '';
-  const staff = receiptInput.staffName || '';
-  const staffCode = receiptInput.staffEmpId || '';
-  const pickup = receiptInput.pickup || '';
-  const dropoff = receiptInput.dropoff || '';
+      : Boolean(receiptInput?.taxiNumber && receiptInput?.taxiNumber !== '--');
+  const taxiNo = receiptInput?.taxiNumber && receiptInput.taxiNumber !== '--' ? receiptInput.taxiNumber : '';
+  const dcNo = receiptInput?.dcNumber && receiptInput.dcNumber !== '--' ? receiptInput.dcNumber : '';
+  const staff = receiptInput?.staffName || '';
+  const staffCode = receiptInput?.staffEmpId || '';
+  const pickup = receiptInput?.pickup || '';
+  const dropoff = receiptInput?.dropoff || '';
   const hasRoute = Boolean(pickup || dropoff);
-  const methodStr = `${receiptInput.paymentMethod || ''} ${receiptInput.paymentType || ''}`.toLowerCase();
+  const methodStr = `${receiptInput?.paymentMethod || ''} ${receiptInput?.paymentType || ''}`.toLowerCase();
   const isCash = methodStr.includes('cash');
   const isTap = !isCash && (methodStr.includes('tap') || methodStr.includes('contactless') || methodStr.includes('nfc'));
-  const cardBrand = (receiptInput.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
-  const paymentMethodLabel = receiptInput.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
-  const payId = receiptInput.paymentId || '--';
-  const dt = receiptInput.dateTime || formatSydneyToUserDateTime(new Date());
+  const cardBrand = (receiptInput?.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
+  const paymentMethodLabel = receiptInput?.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
+  const payId = receiptInput?.paymentId || '--';
+  const dt = receiptInput?.dateTime || formatSydneyToUserDateTime(new Date());
 
-  const statusInfo = getPaymentStatusInfo(receiptInput.paymentStatus, receiptInput.reason);
+  const statusInfo = getPaymentStatusInfo(receiptInput?.paymentStatus, receiptInput?.reason);
 
-  const bk = receiptInput.breakdown;
+  const bk = receiptInput?.breakdown;
   const bkTotal =
-    bk?.payable_amount !== undefined ? Number(bk.payable_amount) : Number(receiptInput.amount) || 0;
+    bk?.payable_amount !== undefined ? Number(bk.payable_amount) : Number(receiptInput?.amount) || 0;
   const bkFee = bk?.service_fee !== undefined ? Number(bk.service_fee) : 0;
   const bkBase =
     bk?.base_amount !== undefined
@@ -99,11 +97,12 @@ export default function ReceiptShareModal({
       : Math.max(0, bkTotal - bkFee);
   const hasBk = true;
 
-  const hasAd = Boolean(receiptInput.hasAdBanner && receiptInput.bannerImageUrl);
-  const bannerUrl = normalizeImageUrl(receiptInput.bannerImageUrl);
+  const hasAd = Boolean(receiptInput?.hasAdBanner && receiptInput?.bannerImageUrl);
+  const bannerUrl = normalizeImageUrl(receiptInput?.bannerImageUrl);
 
   // 0. Print via 58mm Bluetooth Thermal Printer
   const handlePrintThermalReceipt = async () => {
+    if (!receiptInput) return;
     try {
       setIsSharing(true);
       setSharingFormat('thermal');
@@ -150,6 +149,9 @@ export default function ReceiptShareModal({
             type: 'warning',
           });
         }
+        if (autoPrintThermal) {
+          onClose();
+        }
         return;
       }
 
@@ -166,14 +168,32 @@ export default function ReceiptShareModal({
         message: error?.message || 'Unable to print receipt. Please try again.',
         type: 'danger',
       });
+      if (autoPrintThermal) {
+        onClose();
+      }
     } finally {
       setIsSharing(false);
       setSharingFormat(null);
     }
   };
 
+  // Auto-trigger thermal print when opened with autoPrintThermal=true
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (visible && autoPrintThermal && receiptInput && !isSharing) {
+      timer = setTimeout(() => {
+        handlePrintThermalReceipt();
+      }, 100);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, autoPrintThermal, receiptInput]);
+
   // 1. Share as Image (PNG)
   const handleSharePhoto = async () => {
+    if (!receiptInput) return;
     try {
       setIsSharing(true);
       setSharingFormat('photo');
@@ -269,6 +289,7 @@ export default function ReceiptShareModal({
 
   // 2. Share as Animated Card (GIF)
   const handleShareAnimatedGif = async () => {
+    if (!receiptInput) return;
     let receiptTmpUri: string | null = null;
     let adTmpUri: string | null = null;
     try {
@@ -405,6 +426,7 @@ export default function ReceiptShareModal({
 
   // 3. Share as PDF Document
   const handleSharePdf = async () => {
+    if (!receiptInput) return;
     try {
       setIsSharing(true);
       setSharingFormat('pdf');
@@ -496,6 +518,10 @@ export default function ReceiptShareModal({
       setSharingFormat(null);
     }
   };
+
+  if (!receiptInput) {
+    return null;
+  }
 
   return (
     <>
@@ -908,157 +934,191 @@ export default function ReceiptShareModal({
               >
                 <View style={styles.modalHandle} />
 
-                <View style={styles.modalHeaderRow}>
-                  <View>
-                    <Text style={styles.modalTitle}>Share Receipt</Text>
-                    <Text style={styles.modalSubtitle}>
-                      {isSharing && sharingFormat
-                        ? sharingLabels[sharingFormat]
-                        : 'Select your preferred format to share'}
-                    </Text>
-                  </View>
-                  {!isSharing && (
-                    <TouchableOpacity
-                      style={styles.modalCloseBtn}
-                      onPress={onClose}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                {autoPrintThermal ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 18 }}>
+                    <View
+                      style={{
+                        width: 58,
+                        height: 58,
+                        borderRadius: 29,
+                        backgroundColor: '#F1F5F9',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 14,
+                      }}
                     >
-                      <Feather name="x" size={20} color="#64748B" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Option 0: Thermal Bluetooth Printer */}
-                <TouchableOpacity
-                  style={[
-                    styles.modalOptionCard,
-                    isSharing && sharingFormat === 'thermal' && styles.modalOptionCardActive,
-                    isSharing && sharingFormat !== 'thermal' && styles.modalOptionCardDisabled,
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={handlePrintThermalReceipt}
-                  disabled={isSharing}
-                >
-                  <View style={[styles.modalOptionIconBox, { backgroundColor: '#F1F5F9' }]}>
-                    <Feather name="printer" size={22} color="#0F172A" />
-                  </View>
-                  <View style={styles.modalOptionTextWrap}>
-                    <View style={styles.modalOptionTitleRow}>
-                      <Text style={styles.modalOptionTitle}>Print Receipt (Thermal Printer)</Text>
+                      <Feather name="printer" size={28} color="#0F172A" />
                     </View>
-                    <Text style={styles.modalOptionSubtitle}>
-                      {printerService.getState().connectedDevice
-                        ? `Connected: ${printerService.getState().connectedDevice?.name || 'Printer'}`
-                        : 'Tap to print or connect printer'}
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A', marginBottom: 4 }}>
+                      Printing Thermal Receipt
                     </Text>
+                    <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
+                      Sending receipt to Bluetooth thermal printer...
+                    </Text>
+                    <ActivityIndicator size="large" color="#0F172A" style={{ marginBottom: 20 }} />
+                    <TouchableOpacity
+                      style={[styles.modalCancelBtn, { width: '100%' }]}
+                      onPress={onClose}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modalCancelText}>Cancel</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={styles.modalOptionSettingsBtn}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      onClose();
-                      router.push('/printer-settings');
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Feather name="settings" size={17} color="#64748B" />
-                  </TouchableOpacity>
-                  {isSharing && sharingFormat === 'thermal' ? (
-                    <ActivityIndicator size="small" color="#0F172A" />
-                  ) : (
-                    <Feather name="chevron-right" size={18} color="#94A3B8" />
-                  )}
-                </TouchableOpacity>
-
-                {/* Option 1: Share as Image (PNG) */}
-                <TouchableOpacity
-                  style={[
-                    styles.modalOptionCard,
-                    isSharing && sharingFormat === 'photo' && styles.modalOptionCardActive,
-                    isSharing && sharingFormat !== 'photo' && styles.modalOptionCardDisabled,
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={handleSharePhoto}
-                  disabled={isSharing}
-                >
-                  <View style={[styles.modalOptionIconBox, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="image-outline" size={24} color="#D97706" />
-                  </View>
-                  <View style={styles.modalOptionTextWrap}>
-                    <View style={styles.modalOptionTitleRow}>
-                      <Text style={styles.modalOptionTitle}>Share as Image (PNG)</Text>
-                    </View>
-                  </View>
-                  {isSharing && sharingFormat === 'photo' ? (
-                    <ActivityIndicator size="small" color="#D97706" />
-                  ) : (
-                    <Feather name="chevron-right" size={18} color="#94A3B8" />
-                  )}
-                </TouchableOpacity>
-
-                {/* Option 2: Animated Card (GIF) when ad_banner is true */}
-                {hasAd && bannerUrl && (
-                  <TouchableOpacity
-                    style={[
-                      styles.modalOptionCard,
-                      isSharing && sharingFormat === 'gif' && styles.modalOptionCardActive,
-                      isSharing && sharingFormat !== 'gif' && styles.modalOptionCardDisabled,
-                    ]}
-                    activeOpacity={0.75}
-                    onPress={handleShareAnimatedGif}
-                    disabled={isSharing}
-                  >
-                    <View style={[styles.modalOptionIconBox, { backgroundColor: '#F3E8FF' }]}>
-                      <Ionicons name="film-outline" size={24} color="#9333EA" />
-                    </View>
-                    <View style={styles.modalOptionTextWrap}>
-                      <View style={styles.modalOptionTitleRow}>
-                        <Text style={styles.modalOptionTitle}>Share Animated Card</Text>
+                ) : (
+                  <>
+                    <View style={styles.modalHeaderRow}>
+                      <View>
+                        <Text style={styles.modalTitle}>Share Receipt</Text>
+                        <Text style={styles.modalSubtitle}>
+                          {isSharing && sharingFormat
+                            ? sharingLabels[sharingFormat]
+                            : 'Select your preferred format to share'}
+                        </Text>
                       </View>
+                      {!isSharing && (
+                        <TouchableOpacity
+                          style={styles.modalCloseBtn}
+                          onPress={onClose}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Feather name="x" size={20} color="#64748B" />
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {isSharing && sharingFormat === 'gif' ? (
-                      <ActivityIndicator size="small" color="#9333EA" />
-                    ) : (
-                      <Feather name="chevron-right" size={18} color="#94A3B8" />
+
+                    {/* Option 0: Thermal Bluetooth Printer */}
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOptionCard,
+                        isSharing && sharingFormat === 'thermal' && styles.modalOptionCardActive,
+                        isSharing && sharingFormat !== 'thermal' && styles.modalOptionCardDisabled,
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={handlePrintThermalReceipt}
+                      disabled={isSharing}
+                    >
+                      <View style={[styles.modalOptionIconBox, { backgroundColor: '#F1F5F9' }]}>
+                        <Feather name="printer" size={22} color="#0F172A" />
+                      </View>
+                      <View style={styles.modalOptionTextWrap}>
+                        <View style={styles.modalOptionTitleRow}>
+                          <Text style={styles.modalOptionTitle}>Print Receipt (Thermal Printer)</Text>
+                        </View>
+                        <Text style={styles.modalOptionSubtitle}>
+                          {printerService.getState().connectedDevice
+                            ? `Connected: ${printerService.getState().connectedDevice?.name || 'Printer'}`
+                            : 'Tap to print or connect printer'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.modalOptionSettingsBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          onClose();
+                          router.push('/printer-settings');
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="settings" size={17} color="#64748B" />
+                      </TouchableOpacity>
+                      {isSharing && sharingFormat === 'thermal' ? (
+                        <ActivityIndicator size="small" color="#0F172A" />
+                      ) : (
+                        <Feather name="chevron-right" size={18} color="#94A3B8" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 1: Share as Image (PNG) */}
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOptionCard,
+                        isSharing && sharingFormat === 'photo' && styles.modalOptionCardActive,
+                        isSharing && sharingFormat !== 'photo' && styles.modalOptionCardDisabled,
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={handleSharePhoto}
+                      disabled={isSharing}
+                    >
+                      <View style={[styles.modalOptionIconBox, { backgroundColor: '#FEF3C7' }]}>
+                        <Ionicons name="image-outline" size={24} color="#D97706" />
+                      </View>
+                      <View style={styles.modalOptionTextWrap}>
+                        <View style={styles.modalOptionTitleRow}>
+                          <Text style={styles.modalOptionTitle}>Share as Image (PNG)</Text>
+                        </View>
+                      </View>
+                      {isSharing && sharingFormat === 'photo' ? (
+                        <ActivityIndicator size="small" color="#D97706" />
+                      ) : (
+                        <Feather name="chevron-right" size={18} color="#94A3B8" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 2: Animated Card (GIF) when ad_banner is true */}
+                    {hasAd && bannerUrl && (
+                      <TouchableOpacity
+                        style={[
+                          styles.modalOptionCard,
+                          isSharing && sharingFormat === 'gif' && styles.modalOptionCardActive,
+                          isSharing && sharingFormat !== 'gif' && styles.modalOptionCardDisabled,
+                        ]}
+                        activeOpacity={0.75}
+                        onPress={handleShareAnimatedGif}
+                        disabled={isSharing}
+                      >
+                        <View style={[styles.modalOptionIconBox, { backgroundColor: '#F3E8FF' }]}>
+                          <Ionicons name="film-outline" size={24} color="#9333EA" />
+                        </View>
+                        <View style={styles.modalOptionTextWrap}>
+                          <View style={styles.modalOptionTitleRow}>
+                            <Text style={styles.modalOptionTitle}>Share Animated Card</Text>
+                          </View>
+                        </View>
+                        {isSharing && sharingFormat === 'gif' ? (
+                          <ActivityIndicator size="small" color="#9333EA" />
+                        ) : (
+                          <Feather name="chevron-right" size={18} color="#94A3B8" />
+                        )}
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+
+                    {/* Option 3: PDF Document */}
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOptionCard,
+                        isSharing && sharingFormat === 'pdf' && styles.modalOptionCardActive,
+                        isSharing && sharingFormat !== 'pdf' && styles.modalOptionCardDisabled,
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={handleSharePdf}
+                      disabled={isSharing}
+                    >
+                      <View style={[styles.modalOptionIconBox, { backgroundColor: '#EFF6FF' }]}>
+                        <Ionicons name="document-text-outline" size={24} color="#2563EB" />
+                      </View>
+                      <View style={styles.modalOptionTextWrap}>
+                        <View style={styles.modalOptionTitleRow}>
+                          <Text style={styles.modalOptionTitle}>Share as PDF Document</Text>
+                        </View>
+                      </View>
+                      {isSharing && sharingFormat === 'pdf' ? (
+                        <ActivityIndicator size="small" color="#2563EB" />
+                      ) : (
+                        <Feather name="chevron-right" size={18} color="#94A3B8" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Cancel Button */}
+                    <TouchableOpacity
+                      style={[styles.modalCancelBtn, isSharing && { opacity: 0.4 }]}
+                      onPress={onClose}
+                      activeOpacity={0.7}
+                      disabled={isSharing}
+                    >
+                      <Text style={styles.modalCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-
-                {/* Option 3: PDF Document */}
-                <TouchableOpacity
-                  style={[
-                    styles.modalOptionCard,
-                    isSharing && sharingFormat === 'pdf' && styles.modalOptionCardActive,
-                    isSharing && sharingFormat !== 'pdf' && styles.modalOptionCardDisabled,
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={handleSharePdf}
-                  disabled={isSharing}
-                >
-                  <View style={[styles.modalOptionIconBox, { backgroundColor: '#EFF6FF' }]}>
-                    <Ionicons name="document-text-outline" size={24} color="#2563EB" />
-                  </View>
-                  <View style={styles.modalOptionTextWrap}>
-                    <View style={styles.modalOptionTitleRow}>
-                      <Text style={styles.modalOptionTitle}>Share as PDF Document</Text>
-                    </View>
-                  </View>
-                  {isSharing && sharingFormat === 'pdf' ? (
-                    <ActivityIndicator size="small" color="#2563EB" />
-                  ) : (
-                    <Feather name="chevron-right" size={18} color="#94A3B8" />
-                  )}
-                </TouchableOpacity>
-
-                {/* Cancel Button */}
-                <TouchableOpacity
-                  style={[styles.modalCancelBtn, isSharing && { opacity: 0.4 }]}
-                  onPress={onClose}
-                  activeOpacity={0.7}
-                  disabled={isSharing}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
           </View>

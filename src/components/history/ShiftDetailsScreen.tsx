@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import HeaderBar from '../common/HeaderBar';
 import ReceiptShareModal from '../common/ReceiptShareModal';
 import { getPaymentStatusInfo } from '../common/PaymentStatusBadge';
-import { UnifiedReceiptInput, printReceipt } from '../../services/receiptExportService';
+import { UnifiedReceiptInput } from '../../services/receiptExportService';
 import { receiptService } from '../../services/receiptService';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { ShiftRecord, ShiftTransaction } from '../../types/shift';
@@ -40,6 +40,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
   const [_isExporting, _setIsExporting] = useState(false);
   const [selectedTxnForShare, setSelectedTxnForShare] = useState<ShiftTransaction | null>(null);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
+  const [autoPrintThermal, setAutoPrintThermal] = useState(false);
 
   // Debounced search query update (800ms)
   useEffect(() => {
@@ -340,7 +341,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
     }
   };
 
-  // Single trip reprint with fresh server receipt
+  // Single trip reprint via Bluetooth Thermal Printer with fresh server receipt
   const handleReprintTrip = async (txn: ShiftTransaction) => {
     try {
       let targetTxn: any = txn;
@@ -355,9 +356,11 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
           console.warn('[ShiftDetailsScreen] Failed to fetch fresh receipt, using item data:', fetchErr);
         }
       }
-      await printReceipt(getTxnReceiptInput(targetTxn));
+      setSelectedTxnForShare(targetTxn);
+      setAutoPrintThermal(true);
+      setIsShareModalVisible(true);
     } catch (error) {
-      console.warn('Print trip error:', error);
+      console.warn('Reprint trip error:', error);
     }
   };
 
@@ -376,6 +379,7 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
       }
     }
     setSelectedTxnForShare(targetTxn);
+    setAutoPrintThermal(false);
     setIsShareModalVisible(true);
   };
 
@@ -786,8 +790,12 @@ export default function ShiftDetailsScreen({ shift, onBack }: ShiftDetailsScreen
       {/* Share Receipt Modal */}
       <ReceiptShareModal
         visible={isShareModalVisible}
-        onClose={() => setIsShareModalVisible(false)}
+        onClose={() => {
+          setIsShareModalVisible(false);
+          setAutoPrintThermal(false);
+        }}
         receiptInput={selectedShareReceiptInput}
+        autoPrintThermal={autoPrintThermal}
       />
     </View>
   );
