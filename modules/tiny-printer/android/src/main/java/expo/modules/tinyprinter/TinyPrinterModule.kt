@@ -21,9 +21,11 @@ import android.util.Base64
 import android.util.Log
 import cn.com.heaton.blelibrary.ble.model.BleDevice
 import com.blankj.utilcode.util.SPUtils
+import com.ble.bean.DeviceInfoBean
 import com.ble.bean.PrinterModel
 import com.ble.callback.BleConnectCallBack
 import com.ble.callback.BleWriteCallBack
+import com.ble.callback.NotifyCallBack
 import com.ble.callback.ScanCallBack
 import com.ble.callback.initCallBack
 import com.ble.order.BleOrderUtils
@@ -43,6 +45,9 @@ class TinyPrinterModule : Module() {
   private var connectedBleDevice: BleDevice? = null
   private val discoveredDevices = mutableMapOf<String, BleDevice>()
   private var nativeScanCallback: ScanCallback? = null
+  private val mainHandler = Handler(Looper.getMainLooper())
+  private var lastBatteryLevel: Int = -1
+  private var lastDevStatus: Int = -1
 
   private val knownModels = listOf(
     "X5h", "X5", "X16", "X6", "X8", "X", "PR", "GT", "GB", "LY", "58P5", "S101", "M01", "Audio Print"
@@ -54,7 +59,8 @@ class TinyPrinterModule : Module() {
     Events(
       "onDeviceDiscovered",
       "onConnectionChange",
-      "onPrintStatus"
+      "onPrintStatus",
+      "onPrinterStatus"
     )
 
     AsyncFunction("initSdk") { userId: String, promise: Promise ->
@@ -71,10 +77,14 @@ class TinyPrinterModule : Module() {
         // 1. Immediately inject the offline authorization bypass into SPUtils
         populateSdkBypass(targetUserId)
 
-        // 2. Initialize vendor SDK with local cache ready
+        // 2. Setup notify listener for status and battery reporting
+        setupNotifyCallback()
+
+        // 3. Initialize vendor SDK with local cache ready
         bleOrderUtils.init(app, targetUserId, 60000L, object : initCallBack() {
           override fun onSuccess() {
             isInitialized = true
+            setupNotifyCallback()
             try {
               bleOrderUtils.isWriteFailReConnect = true
               bleOrderUtils.failNum = 2
@@ -97,6 +107,7 @@ class TinyPrinterModule : Module() {
           override fun onError(error: String?) {
             // Even if Chinese cloud auth server fails, local authorization is active!
             isInitialized = true
+            setupNotifyCallback()
             populateSdkBypass(targetUserId)
             val checkDevice = try {
               bleOrderUtils.checkDevice("X5") || bleOrderUtils.checkDevice("X5h")
@@ -313,7 +324,6 @@ class TinyPrinterModule : Module() {
         val deviceToConnect = discoveredDevices[address] ?: BleDevice(address, name)
 
         var isResolved = false
-        val mainHandler = Handler(Looper.getMainLooper())
         val timeoutRunnable = Runnable {
           if (!isResolved) {
             isResolved = true
@@ -341,6 +351,13 @@ class TinyPrinterModule : Module() {
                 "address" to address,
                 "name" to name
               ))
+
+              // Hook status callback and fetch battery/paper level after short BLE stabilization
+              setupNotifyCallback()
+              mainHandler.postDelayed({
+                requestDeviceStatusInternal(name, address)
+              }, 600L)
+
               if (!isResolved) {
                 isResolved = true
                 promise.resolve(mapOf(
@@ -351,11 +368,25 @@ class TinyPrinterModule : Module() {
               }
             } else if (device?.connectionState == 2503 || device?.isConnected == false) {
               connectedBleDevice = null
-              sendEvent("onConnectionChange", mapOf(
-                "status" to "disconnected",
-                "address" to address,
-                "name" to name
-              ))
+              lastBatteryLevel = -1
+              lastDevStatus = -1
+              mainHandler.post {
+                try {
+                  sendEvent("onPrinterStatus", mapOf(
+                    "status" to -1,
+                    "batteryLevel" to -1,
+                    "hasPaper" to false,
+                    "address" to address
+                  ))
+                  sendEvent("onConnectionChange", mapOf(
+                    "status" to "disconnected",
+                    "address" to address,
+                    "name" to name
+                  ))
+                } catch (e: Exception) {
+                  Log.w("TinyPrinter", "Disconnect event notice: ${e.message}")
+                }
+              }
             }
           }
 
@@ -396,10 +427,24 @@ class TinyPrinterModule : Module() {
       try {
         bleOrderUtils.disConnect(address)
         connectedBleDevice = null
-        sendEvent("onConnectionChange", mapOf(
-          "status" to "disconnected",
-          "address" to address
-        ))
+        lastBatteryLevel = -1
+        lastDevStatus = -1
+        mainHandler.post {
+          try {
+            sendEvent("onPrinterStatus", mapOf(
+              "status" to -1,
+              "batteryLevel" to -1,
+              "hasPaper" to false,
+              "address" to address
+            ))
+            sendEvent("onConnectionChange", mapOf(
+              "status" to "disconnected",
+              "address" to address
+            ))
+          } catch (e: Exception) {
+            Log.w("TinyPrinter", "Disconnect event notice: ${e.message}")
+          }
+        }
         true
       } catch (e: Exception) {
         false
@@ -438,6 +483,12 @@ class TinyPrinterModule : Module() {
         bleOrderUtils.printImage(list, 1, densityVal, targetDevice, 2, object : BleWriteCallBack() {
           override fun onWriteSuccess() {
             sendEvent("onPrintStatus", mapOf("status" to "success"))
+            // Refresh battery & device status after thermal printing finishes
+            mainHandler.postDelayed({
+              connectedBleDevice?.let { dev ->
+                requestDeviceStatusInternal(dev.bleName ?: "X5h", dev.bleAddress ?: "")
+              }
+            }, 500L)
             promise.resolve(mapOf("success" to true))
           }
 
@@ -469,6 +520,12 @@ class TinyPrinterModule : Module() {
         bleOrderUtils.printImage(list, 1, densityVal, targetDevice, 2, object : BleWriteCallBack() {
           override fun onWriteSuccess() {
             sendEvent("onPrintStatus", mapOf("status" to "success"))
+            // Refresh battery & device status after thermal printing finishes
+            mainHandler.postDelayed({
+              connectedBleDevice?.let { dev ->
+                requestDeviceStatusInternal(dev.bleName ?: "X5h", dev.bleAddress ?: "")
+              }
+            }, 500L)
             promise.resolve(mapOf("success" to true))
           }
 
@@ -484,6 +541,25 @@ class TinyPrinterModule : Module() {
       } catch (e: Exception) {
         promise.reject("ERR_PRINT", e.message ?: "Print receipt failed", e)
       }
+    }
+
+    Function("requestDeviceStatus") { modelOrName: String? ->
+      val targetName = if (!modelOrName.isNullOrBlank()) modelOrName else (connectedBleDevice?.bleName ?: "X5h")
+      val targetAddress = connectedBleDevice?.bleAddress ?: ""
+      requestDeviceStatusInternal(targetName, targetAddress)
+    }
+
+    Function("getBatteryLevel") {
+      lastBatteryLevel
+    }
+
+    Function("getPrinterStatus") {
+      mapOf(
+        "batteryLevel" to lastBatteryLevel,
+        "status" to lastDevStatus,
+        "hasPaper" to (lastDevStatus != 1 && lastDevStatus >= 0),
+        "address" to (connectedBleDevice?.bleAddress ?: "")
+      )
     }
   }
 
@@ -522,6 +598,54 @@ class TinyPrinterModule : Module() {
       "address" to address,
       "isMatching" to isMatch
     ))
+  }
+
+  private fun setupNotifyCallback() {
+    try {
+      bleOrderUtils.setNotifyCallBack(object : NotifyCallBack() {
+        override fun wifiSettingListener(code: Int) {
+          Log.i("TinyPrinter", "wifiSettingListener: $code")
+        }
+
+        override fun devInfoListener(info: DeviceInfoBean?) {
+          Log.i("TinyPrinter", "devInfoListener: ${info?.toString()}")
+        }
+
+        override fun devStatusListener(status: Int, batteryLevel: Int) {
+          Log.i("TinyPrinter", "devStatusListener: status=$status, batteryLevel=$batteryLevel")
+          lastDevStatus = status
+          lastBatteryLevel = batteryLevel
+          val hasPaper = status != 1
+          mainHandler.post {
+            try {
+              sendEvent("onPrinterStatus", mapOf(
+                "status" to status,
+                "batteryLevel" to batteryLevel,
+                "hasPaper" to hasPaper,
+                "address" to (connectedBleDevice?.bleAddress ?: "")
+              ))
+            } catch (e: Exception) {
+              Log.w("TinyPrinter", "Error sending onPrinterStatus event: ${e.message}")
+            }
+          }
+        }
+      })
+    } catch (e: Exception) {
+      Log.w("TinyPrinter", "Failed to setup notify callback: ${e.message}")
+    }
+  }
+
+  private fun requestDeviceStatusInternal(name: String, address: String): Boolean {
+    return try {
+      val targetName = if (name.isNotBlank()) name else (connectedBleDevice?.bleName ?: "X5h")
+      val targetAddress = if (address.isNotBlank()) address else (connectedBleDevice?.bleAddress ?: "")
+      dynamicallyAuthorizeDevice(targetName, targetAddress)
+      bleOrderUtils.getDevState(targetName)
+      true
+    } catch (e: Exception) {
+      Log.w("TinyPrinter", "requestDeviceStatus error: ${e.message}")
+      false
+    }
   }
 
   private fun createModelDataBean(modelNo: String, headName: String): PrinterModel.DataBean {
@@ -619,6 +743,25 @@ class TinyPrinterModule : Module() {
         sp.put("userRight$k", true)
         sp.put("devTypeList$userId$k", true)
         sp.put("devTypeList$k", true)
+      }
+
+      // Ensure model exists in cached PrinterModel JSON so checkValidModel succeeds
+      if (name.isNotBlank()) {
+        try {
+          val json = sp.getString(Code.TAG + Code.devInfo, "")
+          val pm = if (json.isNotEmpty()) Gson().fromJson(json, PrinterModel::class.java) else PrinterModel()
+          val list = pm.data ?: ArrayList()
+          val modelKey = if (prefix.isNotEmpty()) prefix else name
+          if (list.none { it.modelNo == modelKey || it.modelNo == name }) {
+            list.add(createModelDataBean(modelKey, "$modelKey-"))
+            pm.data = list
+            val updatedJson = Gson().toJson(pm)
+            sp.put(Code.TAG + Code.devInfo, updatedJson)
+            sp.put("frogToSeadevInfo", updatedJson)
+          }
+        } catch (e: Exception) {
+          Log.w("TinyPrinter", "Notice updating model cache: ${e.message}")
+        }
       }
 
       sp.put(Code.DEVICETYPE, name)

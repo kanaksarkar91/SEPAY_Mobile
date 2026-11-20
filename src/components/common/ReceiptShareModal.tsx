@@ -49,6 +49,19 @@ export default function ReceiptShareModal({
   const { showAlert, showConfirm } = useConfirmModal();
   const [isSharing, setIsSharing] = useState(false);
   const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | 'thermal' | null>(null);
+  const [printerState, setPrinterState] = useState(printerService.getState());
+
+  useEffect(() => {
+    return printerService.subscribe((s) => {
+      setPrinterState({ ...s });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      printerService.refreshPrinterStatus();
+    }
+  }, [visible]);
 
   const sharingLabels: Record<string, string> = {
     photo: 'Generating Image…',
@@ -1005,8 +1018,12 @@ export default function ReceiptShareModal({
                           <Text style={styles.modalOptionTitle}>Print Receipt (Thermal Printer)</Text>
                         </View>
                         <Text style={styles.modalOptionSubtitle}>
-                          {printerService.getState().connectedDevice
-                            ? `Connected: ${printerService.getState().connectedDevice?.name || 'Printer'}`
+                          {printerState.connectedDevice
+                            ? `Connected: ${printerState.connectedDevice?.name || 'Printer'}${
+                                printerState.batteryLevel !== null && printerState.batteryLevel >= 0
+                                  ? ` • ${printerState.batteryLevel}% 🔋`
+                                  : ''
+                              }${printerState.hasPaper === false ? ' • ⚠️ Out of Paper' : ''}`
                             : 'Tap to print or connect printer'}
                         </Text>
                       </View>

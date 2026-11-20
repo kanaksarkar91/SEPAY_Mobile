@@ -19,6 +19,13 @@ export interface PrintStatusEvent {
   code?: number;
 }
 
+export interface PrinterStatusEvent {
+  status: number;
+  batteryLevel: number; // 0, 20, 40, 60, 80, 100 or -1 if unknown
+  hasPaper: boolean;
+  address?: string;
+}
+
 export interface InitSdkResult {
   success: boolean;
   userId: string;
@@ -163,6 +170,28 @@ export const TinyPrinter = {
   addPrintStatusListener(listener: (event: PrintStatusEvent) => void): Subscription | null {
     if (!emitter) return null;
     return emitter.addListener('onPrintStatus', listener);
+  },
+
+  addPrinterStatusListener(listener: (event: PrinterStatusEvent) => void): Subscription | null {
+    if (!emitter) return null;
+    return emitter.addListener('onPrinterStatus', listener);
+  },
+
+  requestDeviceStatus(modelOrName?: string): boolean {
+    if (!TinyPrinterNative?.requestDeviceStatus) return false;
+    return TinyPrinterNative.requestDeviceStatus(modelOrName);
+  },
+
+  getBatteryLevel(): number {
+    if (!TinyPrinterNative?.getBatteryLevel) return -1;
+    return TinyPrinterNative.getBatteryLevel();
+  },
+
+  getPrinterStatus(): { batteryLevel: number; status: number; hasPaper: boolean; address?: string } {
+    if (!TinyPrinterNative?.getPrinterStatus) {
+      return { batteryLevel: -1, status: -1, hasPaper: false };
+    }
+    return TinyPrinterNative.getPrinterStatus();
   },
 };
 

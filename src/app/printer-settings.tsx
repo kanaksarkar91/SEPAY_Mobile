@@ -33,6 +33,9 @@ export default function PrinterSettingsScreen() {
 
   useEffect(() => {
     printerService.getSavedDensity().then((d) => setDensity(d));
+    if (printerService.getState().connectionStatus === 'connected') {
+      printerService.refreshPrinterStatus();
+    }
   }, []);
 
   useEffect(() => {
@@ -250,9 +253,71 @@ export default function PrinterSettingsScreen() {
               />
             </View>
             <View style={styles.statusTextWrap}>
-              <Text style={styles.statusTitle}>
-                {isConnected ? 'Printer Connected' : 'No Printer Connected'}
-              </Text>
+              <View style={styles.statusTitleRow}>
+                <Text style={styles.statusTitle}>
+                  {isConnected ? 'Printer Connected' : 'No Printer Connected'}
+                </Text>
+                {isConnected && (
+                  <View style={styles.batteryContainer}>
+                    {state.batteryLevel !== null && state.batteryLevel >= 0 ? (
+                      <View
+                        style={[
+                          styles.batteryBadge,
+                          state.batteryLevel >= 60
+                            ? styles.batteryBadgeHigh
+                            : state.batteryLevel >= 30
+                            ? styles.batteryBadgeMid
+                            : styles.batteryBadgeLow,
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            state.batteryLevel >= 80
+                              ? 'battery-full'
+                              : state.batteryLevel >= 40
+                              ? 'battery-half'
+                              : 'battery-dead'
+                          }
+                          size={13}
+                          color={
+                            state.batteryLevel >= 60
+                              ? '#15803D'
+                              : state.batteryLevel >= 30
+                              ? '#B45309'
+                              : '#B91C1C'
+                          }
+                          style={{ marginRight: 3 }}
+                        />
+                        <Text
+                          style={[
+                            styles.batteryBadgeText,
+                            {
+                              color:
+                                state.batteryLevel >= 60
+                                  ? '#15803D'
+                                  : state.batteryLevel >= 30
+                                  ? '#B45309'
+                                  : '#B91C1C',
+                            },
+                          ]}
+                        >
+                          {state.batteryLevel}%
+                        </Text>
+                      </View>
+                    ) : null}
+                    <TouchableOpacity
+                      style={styles.batteryRefreshBtn}
+                      onPress={() => {
+                        printerService.refreshPrinterStatus();
+                        setStatusMessage('Querying printer battery…');
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="refresh-cw" size={13} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
               <Text style={styles.statusSubtitle}>
                 {isConnected
                   ? `${state.connectedDevice?.name} (${state.connectedDevice?.address})`
@@ -260,6 +325,12 @@ export default function PrinterSettingsScreen() {
                   ? `Saved: ${state.savedDevice.name} (${state.savedDevice.address})`
                   : 'Search and connect your Bluetooth printer below'}
               </Text>
+              {isConnected && state.hasPaper === false && (
+                <View style={styles.paperWarningWrap}>
+                  <Feather name="alert-circle" size={13} color="#DC2626" style={{ marginRight: 4 }} />
+                  <Text style={styles.paperWarningText}>Out of Paper — Please load 58mm paper roll</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -569,15 +640,72 @@ const styles = StyleSheet.create({
   statusTextWrap: {
     flex: 1,
   },
+  statusTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   statusTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
   },
+  batteryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  batteryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  batteryBadgeHigh: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  batteryBadgeMid: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  batteryBadgeLow: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  batteryBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  batteryRefreshBtn: {
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
   statusSubtitle: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 2,
+  },
+  paperWarningWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  paperWarningText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
   },
   actionRow: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import {
   DeviceDiscoveredEvent,
   ConnectionChangeEvent,
   PrintStatusEvent,
+  PrinterStatusEvent,
   Subscription,
 } from '../../modules/tiny-printer';
 
@@ -25,6 +26,9 @@ export interface PrinterServiceState {
   savedDevice: BlePrinterDevice | null;
   isPrinting: boolean;
   printProgress: number;
+  batteryLevel: number | null; // e.g. 0, 20, 40, 60, 80, 100 or null if unknown
+  hasPaper: boolean | null; // true = OK, false = out of paper, null = unknown
+  printerStatus: number | null; // vendor status code: 0=normal, 1=out of paper, etc.
 }
 
 const SAVED_PRINTER_KEY = 'sepay_saved_printer';
@@ -40,6 +44,9 @@ class PrinterService {
     savedDevice: null,
     isPrinting: false,
     printProgress: 0,
+    batteryLevel: null,
+    hasPaper: null,
+    printerStatus: null,
   };
 
   private listeners: Set<(state: PrinterServiceState) => void> = new Set();
@@ -50,6 +57,7 @@ class PrinterService {
   private connSub: Subscription | null = null;
   private printSub: Subscription | null = null;
   private scanSub: Subscription | null = null;
+  private statusSub: Subscription | null = null;
 
   constructor() {
     this.checkAvailability();
@@ -116,6 +124,7 @@ class PrinterService {
   private setupSubscriptions() {
     if (this.connSub) this.connSub.remove();
     if (this.printSub) this.printSub.remove();
+    if (this.statusSub) this.statusSub.remove();
 
     this.connSub = TinyPrinter.addConnectionChangeListener((event: ConnectionChangeEvent) => {
       if (event.status === 'connected') {
@@ -128,15 +137,25 @@ class PrinterService {
           connectionStatus: 'connected',
           connectedDevice: device,
         });
+        // Request immediate battery & paper state
+        try {
+          TinyPrinter.requestDeviceStatus(device.name);
+        } catch {}
       } else if (event.status === 'disconnected') {
         this.updateState({
           connectionStatus: 'disconnected',
           connectedDevice: null,
+          batteryLevel: null,
+          hasPaper: null,
+          printerStatus: null,
         });
       } else if (event.status === 'failed' || event.status === 'timeout') {
         this.updateState({
           connectionStatus: event.status,
           connectedDevice: null,
+          batteryLevel: null,
+          hasPaper: null,
+          printerStatus: null,
         });
       }
     });
@@ -152,12 +171,22 @@ class PrinterService {
           isPrinting: false,
           printProgress: 1.0,
         });
+        // Refresh battery status after printing
+        this.refreshPrinterStatus();
       } else if (event.status === 'failed') {
         this.updateState({
           isPrinting: false,
           printProgress: 0,
         });
       }
+    });
+
+    this.statusSub = TinyPrinter.addPrinterStatusListener((event: PrinterStatusEvent) => {
+      this.updateState({
+        batteryLevel: event.batteryLevel >= 0 ? event.batteryLevel : null,
+        hasPaper: event.status >= 0 ? event.hasPaper : null,
+        printerStatus: event.status >= 0 ? event.status : null,
+      });
     });
   }
 
@@ -353,8 +382,31 @@ class PrinterService {
     this.updateState({
       connectionStatus: 'disconnected',
       connectedDevice: null,
+      batteryLevel: null,
+      hasPaper: null,
+      printerStatus: null,
     });
     return true;
+  }
+
+  public getBatteryLevel(): number | null {
+    if (this.state.batteryLevel !== null) return this.state.batteryLevel;
+    if (this.isAvailable()) {
+      const lvl = TinyPrinter.getBatteryLevel();
+      if (lvl >= 0) {
+        this.updateState({ batteryLevel: lvl });
+        return lvl;
+      }
+    }
+    return null;
+  }
+
+  public refreshPrinterStatus(): void {
+    if (!this.isAvailable()) return;
+    const dev = this.state.connectedDevice;
+    if (dev) {
+      TinyPrinter.requestDeviceStatus(dev.name);
+    }
   }
 
   public feedPaper(): boolean {
