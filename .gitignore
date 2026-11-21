@@ -21,14 +21,26 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
-# debug
+# debug and logs
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+logs/
 
-# macOS
+# OS metadata
 .DS_Store
+Thumbs.db
 *.pem
+
+# IDE & Editor settings
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # local env files
 .env
@@ -47,9 +59,14 @@ build/
 **/build/
 *.apk
 *.aar
+*.aab
 .gradle/
+**/bundle/
 
-# assets
+# assets and documentation artifacts
 playstore-assets/
+docs/checklist_extracted/
+__pycache__/
+*.pyc
 
 

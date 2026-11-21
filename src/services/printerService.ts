@@ -34,6 +34,18 @@ export interface PrinterServiceState {
 const SAVED_PRINTER_KEY = 'sepay_saved_printer';
 const SAVED_DENSITY_KEY = 'sepay_printer_density';
 
+/**
+ * Normalizes battery level reported by hardware / vendor SDK.
+ * bleLib1.jar vendor SDK multiplies raw byte by 20. Older firmware returned 0..5 (0..100%),
+ * but newer firmware (X6h, X5, etc.) sends 0..100 directly. 18% became 360%.
+ * Normalization reverses the SDK multiplier (lvl / 20) when > 100 and clamps to 0..100.
+ */
+function normalizeBatteryLevel(rawLevel: number | undefined | null): number | null {
+  if (typeof rawLevel !== 'number' || rawLevel < 0) return null;
+  const normalized = rawLevel > 100 ? Math.round(rawLevel / 20) : rawLevel;
+  return Math.min(100, Math.max(0, normalized));
+}
+
 class PrinterService {
   private state: PrinterServiceState = {
     isAvailable: false,
@@ -51,6 +63,7 @@ class PrinterService {
 
   private listeners: Set<(state: PrinterServiceState) => void> = new Set();
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private statusPollTimer: ReturnType<typeof setInterval> | null = null;
   private sdkInitialized = false;
   private savedDensity = 5; // Default to 5 (Darkest / highest thermal contrast)
 
@@ -137,11 +150,13 @@ class PrinterService {
           connectionStatus: 'connected',
           connectedDevice: device,
         });
+        this.startStatusPolling();
         // Request immediate battery & paper state
         try {
           TinyPrinter.requestDeviceStatus(device.name);
         } catch {}
       } else if (event.status === 'disconnected') {
+        this.stopStatusPolling();
         this.updateState({
           connectionStatus: 'disconnected',
           connectedDevice: null,
@@ -150,6 +165,7 @@ class PrinterService {
           printerStatus: null,
         });
       } else if (event.status === 'failed' || event.status === 'timeout') {
+        this.stopStatusPolling();
         this.updateState({
           connectionStatus: event.status,
           connectedDevice: null,
@@ -183,7 +199,7 @@ class PrinterService {
 
     this.statusSub = TinyPrinter.addPrinterStatusListener((event: PrinterStatusEvent) => {
       this.updateState({
-        batteryLevel: event.batteryLevel >= 0 ? event.batteryLevel : null,
+        batteryLevel: normalizeBatteryLevel(event.batteryLevel),
         hasPaper: event.status >= 0 ? event.hasPaper : null,
         printerStatus: event.status >= 0 ? event.status : null,
       });
@@ -363,8 +379,11 @@ class PrinterService {
         connectionStatus: 'connected',
         connectedDevice: device,
       });
+      this.startStatusPolling();
+      this.refreshPrinterStatus();
       return true;
     } catch (err: any) {
+      this.stopStatusPolling();
       this.updateState({
         connectionStatus: 'failed',
         connectedDevice: null,
@@ -375,6 +394,7 @@ class PrinterService {
 
   public disconnect(): boolean {
     if (!this.isAvailable()) return false;
+    this.stopStatusPolling();
     const target = this.state.connectedDevice?.address || this.state.savedDevice?.address;
     if (target) {
       TinyPrinter.disconnect(target);
@@ -393,9 +413,10 @@ class PrinterService {
     if (this.state.batteryLevel !== null) return this.state.batteryLevel;
     if (this.isAvailable()) {
       const lvl = TinyPrinter.getBatteryLevel();
-      if (lvl >= 0) {
-        this.updateState({ batteryLevel: lvl });
-        return lvl;
+      const normalized = normalizeBatteryLevel(lvl);
+      if (normalized !== null) {
+        this.updateState({ batteryLevel: normalized });
+        return normalized;
       }
     }
     return null;
@@ -403,9 +424,31 @@ class PrinterService {
 
   public refreshPrinterStatus(): void {
     if (!this.isAvailable()) return;
+    if (this.state.isPrinting) return;
     const dev = this.state.connectedDevice;
     if (dev) {
-      TinyPrinter.requestDeviceStatus(dev.name);
+      try {
+        TinyPrinter.requestDeviceStatus(dev.name);
+      } catch (err) {
+        console.warn('[PrinterService] Failed to query printer status:', err);
+      }
+    }
+  }
+
+  private startStatusPolling(): void {
+    this.stopStatusPolling();
+    // Periodically refresh real battery percentage and status every 20 seconds while connected
+    this.statusPollTimer = setInterval(() => {
+      if (this.state.connectionStatus === 'connected' && !this.state.isPrinting) {
+        this.refreshPrinterStatus();
+      }
+    }, 20000);
+  }
+
+  private stopStatusPolling(): void {
+    if (this.statusPollTimer) {
+      clearInterval(this.statusPollTimer);
+      this.statusPollTimer = null;
     }
   }
 

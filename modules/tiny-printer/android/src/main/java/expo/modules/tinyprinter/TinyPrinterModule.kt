@@ -612,15 +612,25 @@ class TinyPrinterModule : Module() {
         }
 
         override fun devStatusListener(status: Int, batteryLevel: Int) {
-          Log.i("TinyPrinter", "devStatusListener: status=$status, batteryLevel=$batteryLevel")
+          Log.i("TinyPrinter", "devStatusListener: status=$status, rawBatteryLevel=$batteryLevel")
           lastDevStatus = status
-          lastBatteryLevel = batteryLevel
+
+          // Vendor SDK (bleLib1.jar) hardcodes `(byte[7] & 0xFF) * 20` assuming 0..5 bars.
+          // Newer printers (X6h, X5, etc.) send direct percentage (0..100).
+          // For example, when 18% is received, the SDK multiplies 18 * 20 = 360.
+          // Reversing the SDK multiplier (batteryLevel / 20) recovers the true percentage.
+          val normalizedBattery = when {
+            batteryLevel > 100 -> (batteryLevel / 20).coerceIn(0, 100)
+            batteryLevel in 0..100 -> batteryLevel
+            else -> -1
+          }
+          lastBatteryLevel = normalizedBattery
           val hasPaper = status != 1
           mainHandler.post {
             try {
               sendEvent("onPrinterStatus", mapOf(
                 "status" to status,
-                "batteryLevel" to batteryLevel,
+                "batteryLevel" to normalizedBattery,
                 "hasPaper" to hasPaper,
                 "address" to (connectedBleDevice?.bleAddress ?: "")
               ))
@@ -801,7 +811,7 @@ class TinyPrinterModule : Module() {
     val dateFormat = SimpleDateFormat("dd-MMM-yyyy HH:mm:ss", Locale.getDefault())
     val dateStr = dateFormat.format(Date())
 
-    val estimatedHeight = 620
+    val estimatedHeight = 670
     val bitmap = Bitmap.createBitmap(width, estimatedHeight, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     canvas.drawColor(Color.WHITE)
@@ -811,83 +821,83 @@ class TinyPrinterModule : Module() {
       color = Color.BLACK
     }
 
-    var y = 35f
+    var y = 38f
 
-    paint.textSize = 26f
+    paint.textSize = 28f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     paint.textAlign = Paint.Align.CENTER
     canvas.drawText(storeName, width / 2f, y, paint)
-    y += 28f
+    y += 30f
 
-    paint.textSize = 15f
+    paint.textSize = 16.5f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     canvas.drawText(subtitle, width / 2f, y, paint)
-    y += 22f
+    y += 24f
 
-    paint.textSize = 14f
+    paint.textSize = 15f
     canvas.drawText("------------------------------------------------", width / 2f, y, paint)
-    y += 26f
+    y += 28f
 
-    paint.textSize = 16f
+    paint.textSize = 18f
     paint.textAlign = Paint.Align.LEFT
     canvas.drawText("Date:", 20f, y, paint)
     paint.textAlign = Paint.Align.RIGHT
     canvas.drawText(dateStr, width - 20f, y, paint)
-    y += 24f
+    y += 26f
 
     paint.textAlign = Paint.Align.LEFT
     canvas.drawText("Transaction ID:", 20f, y, paint)
     paint.textAlign = Paint.Align.RIGHT
     canvas.drawText(txnId, width - 20f, y, paint)
-    y += 24f
+    y += 26f
 
     paint.textAlign = Paint.Align.LEFT
     canvas.drawText("Payment Method:", 20f, y, paint)
     paint.textAlign = Paint.Align.RIGHT
     canvas.drawText("$cardType (**** $cardLast4)", width - 20f, y, paint)
-    y += 26f
+    y += 28f
 
     paint.textAlign = Paint.Align.CENTER
-    paint.textSize = 14f
+    paint.textSize = 15f
     canvas.drawText("================================================", width / 2f, y, paint)
-    y += 30f
+    y += 32f
 
-    paint.textSize = 17f
+    paint.textSize = 18.5f
     paint.textAlign = Paint.Align.LEFT
     canvas.drawText("Fare / Service:", 20f, y, paint)
     paint.textAlign = Paint.Align.RIGHT
     canvas.drawText(amount, width - 20f, y, paint)
-    y += 26f
+    y += 28f
 
     paint.textAlign = Paint.Align.LEFT
     canvas.drawText("Tip:", 20f, y, paint)
     paint.textAlign = Paint.Align.RIGHT
     canvas.drawText(tip, width - 20f, y, paint)
-    y += 30f
+    y += 32f
 
-    paint.textSize = 24f
+    paint.textSize = 26f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     paint.textAlign = Paint.Align.LEFT
     canvas.drawText("TOTAL PAID:", 20f, y, paint)
     paint.textAlign = Paint.Align.RIGHT
     canvas.drawText(total, width - 20f, y, paint)
-    y += 32f
+    y += 34f
 
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     paint.textAlign = Paint.Align.CENTER
-    paint.textSize = 14f
+    paint.textSize = 15f
     canvas.drawText("------------------------------------------------", width / 2f, y, paint)
-    y += 28f
+    y += 30f
 
-    paint.textSize = 20f
+    paint.textSize = 22f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     canvas.drawText("[ $status ]", width / 2f, y, paint)
-    y += 24f
+    y += 26f
 
-    paint.textSize = 14f
+    paint.textSize = 15.5f
     paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     canvas.drawText(authCode, width / 2f, y, paint)
-    y += 30f
+    y += 32f
 
     val barStartY = y
     val barHeight = 35f

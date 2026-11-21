@@ -45,6 +45,12 @@ export default function PrinterSettingsScreen() {
     return unsub;
   }, []);
 
+  // Safe normalized battery percentage (0..100)
+  const displayBattery =
+    state.batteryLevel !== null && state.batteryLevel >= 0
+      ? Math.min(100, Math.max(0, state.batteryLevel > 100 ? Math.round(state.batteryLevel / 20) : state.batteryLevel))
+      : null;
+
   // Handle Scan
   const handleStartScan = useCallback(async (showPromptOnError: boolean = true) => {
     if (Platform.OS !== 'android') {
@@ -259,30 +265,30 @@ export default function PrinterSettingsScreen() {
                 </Text>
                 {isConnected && (
                   <View style={styles.batteryContainer}>
-                    {state.batteryLevel !== null && state.batteryLevel >= 0 ? (
+                    {displayBattery !== null ? (
                       <View
                         style={[
                           styles.batteryBadge,
-                          state.batteryLevel >= 60
+                          displayBattery >= 60
                             ? styles.batteryBadgeHigh
-                            : state.batteryLevel >= 30
+                            : displayBattery >= 30
                             ? styles.batteryBadgeMid
                             : styles.batteryBadgeLow,
                         ]}
                       >
                         <Ionicons
                           name={
-                            state.batteryLevel >= 80
+                            displayBattery >= 80
                               ? 'battery-full'
-                              : state.batteryLevel >= 40
+                              : displayBattery >= 40
                               ? 'battery-half'
                               : 'battery-dead'
                           }
                           size={13}
                           color={
-                            state.batteryLevel >= 60
+                            displayBattery >= 60
                               ? '#15803D'
-                              : state.batteryLevel >= 30
+                              : displayBattery >= 30
                               ? '#B45309'
                               : '#B91C1C'
                           }
@@ -293,15 +299,15 @@ export default function PrinterSettingsScreen() {
                             styles.batteryBadgeText,
                             {
                               color:
-                                state.batteryLevel >= 60
+                                displayBattery >= 60
                                   ? '#15803D'
-                                  : state.batteryLevel >= 30
+                                  : displayBattery >= 30
                                   ? '#B45309'
                                   : '#B91C1C',
                             },
                           ]}
                         >
-                          {state.batteryLevel}%
+                          {displayBattery}%
                         </Text>
                       </View>
                     ) : null}
