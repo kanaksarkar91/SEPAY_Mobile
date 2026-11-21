@@ -3,7 +3,7 @@
     "name": "SE Pay",
     "slug": "TapToPay",
     "scheme": "sepay",
-    "version": "1.9",
+    "version": "2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.syscentric.taptopay",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "UIBackgroundModes": [
           "bluetooth-central"
@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.syscentric.taptopay",
-      "versionCode": 10,
+      "versionCode": 11,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

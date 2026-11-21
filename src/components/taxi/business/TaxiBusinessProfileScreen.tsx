@@ -41,7 +41,6 @@ import {
   formatSydneyShiftRange,
 } from '../../../utils/dateUtils';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
-import { DiagnosticLogsModal } from '../../common/DiagnosticLogsModal';
 
 export default function TaxiBusinessProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -65,7 +64,6 @@ export default function TaxiBusinessProfileScreen() {
   // Modals State
   const [isBankModalVisible, setIsBankModalVisible] = useState(false);
   const [isUpdateBankModalVisible, setIsUpdateBankModalVisible] = useState(false);
-  const [isLogsModalVisible, setIsLogsModalVisible] = useState(false);
 
   // Current Bank Account Information
   const [accountName, setAccountName] = useState('');
@@ -765,7 +763,7 @@ export default function TaxiBusinessProfileScreen() {
 
         {/* ── DYNAMIC MENU OPTIONS (from API data.menu_options) ── */}
         <View style={styles.menuGroup}>
-          {(profileData?.menu_options || []).filter((item) => item.key !== 'app_logs').map((item) => (
+          {(profileData?.menu_options || []).filter((item) => item.key !== 'app_logs' && item.key !== 'diagnostics').map((item) => (
             <TouchableOpacity
               key={item.key}
               style={styles.menuItemCard}
@@ -819,16 +817,6 @@ export default function TaxiBusinessProfileScreen() {
         >
           <Feather name="printer" size={16} color="#0F172A" style={{ marginRight: 8 }} />
           <Text style={styles.diagLogsButtonText}>Bluetooth Thermal Printer</Text>
-        </TouchableOpacity>
-
-        {/* ── DIAGNOSTIC LOGS BUTTON ── */}
-        <TouchableOpacity
-          style={styles.diagLogsButton}
-          onPress={() => setIsLogsModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="terminal-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
-          <Text style={styles.diagLogsButtonText}>Diagnostics & App Logs</Text>
         </TouchableOpacity>
 
         {/* ── LOG OUT ACCOUNT BUTTON ── */}
@@ -1270,11 +1258,6 @@ export default function TaxiBusinessProfileScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Diagnostic Logs Modal */}
-      <DiagnosticLogsModal
-        visible={isLogsModalVisible}
-        onClose={() => setIsLogsModalVisible(false)}
-      />
     </View>
   );
 }

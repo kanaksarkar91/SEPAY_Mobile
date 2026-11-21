@@ -15,7 +15,6 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../context/AuthContext';
 import HeaderBar from '../../common/HeaderBar';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
-import { DiagnosticLogsModal } from '../../common/DiagnosticLogsModal';
 import {
   profileService,
   ProfileResponseData,
@@ -42,7 +41,6 @@ export default function OtherBusinessEmployeeProfileScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOnShift, setIsOnShift] = useState(false);
   const [isShiftActionLoading, setIsShiftActionLoading] = useState(false);
-  const [isLogsModalVisible, setIsLogsModalVisible] = useState(false);
 
   const applyProfileData = useCallback((data: ProfileResponseData) => {
     setProfileData(data);
@@ -524,7 +522,7 @@ export default function OtherBusinessEmployeeProfileScreen() {
 
         {/* ── 2. DYNAMIC MENU ACTION CARDS (Rendered from data.menu_options) ── */}
         <View style={styles.actionCardsList}>
-          {(profileData?.menu_options || []).map((item) => (
+          {(profileData?.menu_options || []).filter((item) => item.key !== 'app_logs' && item.key !== 'diagnostics').map((item) => (
             <TouchableOpacity
               key={item.key}
               style={styles.actionCard}
@@ -567,16 +565,6 @@ export default function OtherBusinessEmployeeProfileScreen() {
           <Text style={styles.diagLogsButtonText}>Bluetooth Thermal Printer</Text>
         </TouchableOpacity>
 
-        {/* ── DIAGNOSTIC LOGS BUTTON ── */}
-        <TouchableOpacity
-          style={styles.diagLogsButton}
-          onPress={() => setIsLogsModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="terminal-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
-          <Text style={styles.diagLogsButtonText}>Diagnostics & App Logs</Text>
-        </TouchableOpacity>
-
         {/* ── 3. LOG OUT BUTTON ── */}
         <TouchableOpacity
           style={styles.logoutButton}
@@ -600,10 +588,6 @@ export default function OtherBusinessEmployeeProfileScreen() {
         <View style={{ height: 28 }} />
       </ScrollView>
 
-      <DiagnosticLogsModal
-        visible={isLogsModalVisible}
-        onClose={() => setIsLogsModalVisible(false)}
-      />
     </View>
   );
 }
