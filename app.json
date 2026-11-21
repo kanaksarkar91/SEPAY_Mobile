@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SE Pay",
+    "name": "SE PAY",
     "slug": "TapToPay",
     "scheme": "sepay",
     "version": "1.6",
@@ -10,8 +10,12 @@
     "backgroundColor": "#FFFFFF",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.syscentric.taptopay",
+      "bundleIdentifier": "com.setaxibrokers.sepay",
+      "appleTeamId": "4M454SF48R",
       "buildNumber": "7",
+      "entitlements": {
+        "com.apple.developer.proximity-reader.payment.acceptance": true
+      },
       "infoPlist": {
         "UIBackgroundModes": [
           "bluetooth-central"

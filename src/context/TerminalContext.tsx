@@ -722,7 +722,10 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
           discErrText =
             'This phone model does not support Tap to Pay hardware security (Device lacks Trusted Execution Environment / Key Attestation required by Stripe & PCI standards). Please use a supported device (e.g. Samsung Galaxy, Google Pixel).';
         } else {
-          discErrText += ' Please ensure Location (GPS) is turned ON and NFC is enabled in Android settings.';
+          discErrText +=
+            Platform.OS === 'ios'
+              ? ' Please ensure Location Services are enabled for this app and the build includes the Tap to Pay on iPhone entitlement.'
+              : ' Please ensure Location (GPS) is turned ON and NFC is enabled in Android settings.';
         }
         appLogger.error('TERMINAL', discErrText, discoverError);
         throw new Error(discErrText);
