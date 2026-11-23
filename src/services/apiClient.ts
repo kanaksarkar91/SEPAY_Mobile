@@ -3,6 +3,29 @@ import { config } from '../constants/config';
 import { tokenStorage } from './tokenStorage';
 import { deviceService } from './deviceService';
 import { appLogger } from './appLogger';
+import { APP_CONFIG } from '../constants/appConfig';
+
+/**
+ * Redacts sensitive card and credential data from logs and console outputs
+ */
+function sanitizeLogData(data: any): any {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(sanitizeLogData);
+
+  const SENSITIVE_KEYS = ['number', 'cardnumber', 'card_number', 'cvc', 'cvv', 'password', 'pin', 'secret'];
+  const sanitized: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (SENSITIVE_KEYS.some((s) => key.toLowerCase().includes(s))) {
+      sanitized[key] = typeof value === 'string' && value.length >= 4 ? `***${value.slice(-4)}` : '***REDACTED***';
+    } else if (value && typeof value === 'object') {
+      sanitized[key] = sanitizeLogData(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
 
 export type UnauthorizedListener = (reason: string) => void;
 const unauthorizedListeners = new Set<UnauthorizedListener>();
@@ -72,14 +95,16 @@ apiClient.interceptors.request.use(
       reqConfig.headers['X-Device-Model'] = deviceService.getDeviceModel();
       reqConfig.headers['X-OS-Version'] = deviceService.getOsVersion();
       reqConfig.headers['X-Platform'] = deviceService.getPlatform();
+      reqConfig.headers['X-App-Version'] = APP_CONFIG.version;
     }
 
     const fullUrl = `${reqConfig.baseURL || ''}${reqConfig.url || ''}`;
     const method = (reqConfig.method || 'GET').toUpperCase();
+    const sanitizedData = sanitizeLogData(reqConfig.data);
 
     appLogger.log('API', `--> [${method}] ${fullUrl}`, {
       params: reqConfig.params,
-      data: reqConfig.data,
+      data: sanitizedData,
       hasToken: Boolean(token),
     });
 
@@ -89,8 +114,8 @@ apiClient.interceptors.request.use(
     if (reqConfig.params) {
       console.log('Query Params:', JSON.stringify(reqConfig.params, null, 2));
     }
-    if (reqConfig.data) {
-      console.log('Payload:', JSON.stringify(reqConfig.data, null, 2));
+    if (sanitizedData) {
+      console.log('Payload:', JSON.stringify(sanitizedData, null, 2));
     }
     console.log('====================================================\n');
 

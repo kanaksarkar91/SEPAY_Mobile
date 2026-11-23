@@ -192,8 +192,8 @@ export async function createPaymentIntentOnBackend(
   amount: number,
   currency: string = 'aud',
   paymentMethodType: PaymentMethodType = 'tap',
-  card?: { number: string; expMonth: string | number; expYear: string | number; cvc: string },
   paymentMethodId?: string,
+  cardDetails?: { brand?: string; last4?: string },
   routeDetails?: {
     pickup_id?: number | string | null;
     dropoff_id?: number | string | null;
@@ -208,22 +208,24 @@ export async function createPaymentIntentOnBackend(
     idempotency_key?: string | null;
   }
 ): Promise<CreatePaymentIntentResponse> {
-  const formattedCard = card
-    ? {
-        number: String(card.number).replace(/\s/g, ''),
-        expMonth: typeof card.expMonth === 'number' ? card.expMonth : parseInt(String(card.expMonth), 10),
-        expYear: typeof card.expYear === 'number' ? card.expYear : parseInt(String(card.expYear), 10),
-        cvc: String(card.cvc).trim(),
-      }
-    : undefined;
-
+  // PCI-DSS: Never send raw PAN, CVV, or expiration to custom backend.
+  // When paymentMethodId is provided, the card is already securely tokenized via Stripe.
   const payload: Record<string, any> = {
     amount,
     currency,
     paymentMethodType,
-    paymentMethodId,
-    card: formattedCard,
   };
+
+  if (paymentMethodId) {
+    payload.paymentMethodId = paymentMethodId;
+  }
+
+  if (cardDetails?.last4) {
+    payload.cardLast4 = cardDetails.last4;
+  }
+  if (cardDetails?.brand) {
+    payload.cardBrand = cardDetails.brand;
+  }
 
   if (routeDetails?.shift_session_id !== undefined && routeDetails?.shift_session_id !== null && routeDetails?.shift_session_id !== '') {
     payload.shift_session_id = Number(routeDetails.shift_session_id) || routeDetails.shift_session_id;

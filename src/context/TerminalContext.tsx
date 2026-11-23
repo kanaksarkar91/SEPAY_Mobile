@@ -282,9 +282,17 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               paymentMethodId = pmResult.id;
               cardBrand = pmResult.brand;
               cardLast4 = pmResult.last4;
+              // Secure memory wiping: card is now tokenized as pmResult.id
+              cardInput.number = '';
+              cardInput.cvc = '';
             } catch (tokErr: any) {
-              console.warn('⚠️ Client-side tokenization failed, attempting backend fallback:', tokErr.message);
+              console.error('❌ [STRIPE] Client-side card tokenization failed:', tokErr.message);
+              throw new Error(tokErr?.message || 'Card verification failed. Please check the card details and try again.');
             }
+          }
+
+          if (!paymentMethodId) {
+            throw new Error('Valid card details are required to process card payments.');
           }
 
           setStatusMessage('Authorizing card transaction with Stripe...');
@@ -292,8 +300,8 @@ const SimulatedTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             amount,
             'aud',
             'card',
-            cardInput,
             paymentMethodId,
+            { brand: cardBrand, last4: cardLast4 },
             routeDetails
           );
           console.log('💳 [STRIPE CARD API RESPONSE]:', JSON.stringify(intentRes, null, 2));
@@ -912,25 +920,33 @@ const NativeTerminalProvider: React.FC<{ children: React.ReactNode }> = ({ child
               paymentMethodId = pmResult.id;
               cardBrand = pmResult.brand;
               cardLast4 = pmResult.last4;
+              // Secure memory wiping: card is now tokenized as pmResult.id
+              cardInput.number = '';
+              cardInput.cvc = '';
               appLogger.info('TERMINAL', 'Client-side card tokenization succeeded:', {
                 id: pmResult.id,
                 brand: pmResult.brand,
                 last4: pmResult.last4,
               });
             } catch (tokErr: any) {
-              appLogger.warn('TERMINAL', 'Client-side tokenization failed, attempting backend fallback:', tokErr.message);
-              console.warn('⚠️ Client-side tokenization failed, attempting backend fallback:', tokErr.message);
+              appLogger.error('TERMINAL', 'Client-side card tokenization failed:', tokErr.message);
+              console.error('❌ Client-side card tokenization failed:', tokErr.message);
+              throw new Error(tokErr?.message || 'Card verification failed. Please check the card details and try again.');
             }
           }
 
+          if (!paymentMethodId) {
+            throw new Error('Valid card details are required to process card payments.');
+          }
+
           setStatusMessage('Authorizing card transaction with Stripe...');
-          appLogger.info('TERMINAL', 'Calling createPaymentIntentOnBackend for card payment...');
+          appLogger.info('TERMINAL', 'Calling createPaymentIntentOnBackend with tokenized paymentMethodId...');
           const intentRes = await createPaymentIntentOnBackend(
             amount,
             'aud',
             'card',
-            cardInput,
             paymentMethodId,
+            { brand: cardBrand, last4: cardLast4 },
             routeDetails
           );
           appLogger.info('TERMINAL', 'Card PaymentIntent created:', intentRes);
