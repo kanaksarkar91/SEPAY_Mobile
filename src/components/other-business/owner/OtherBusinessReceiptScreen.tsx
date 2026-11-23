@@ -7,7 +7,6 @@ import {
   StatusBar,
   ScrollView,
   Image,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +17,7 @@ import ReceiptShareModal from '../../common/ReceiptShareModal';
 import { normalizeImageUrl } from '../../../utils/assetUtils';
 import { formatSydneyToUserDateTime } from '../../../utils/dateUtils';
 import { receiptService, ReceiptData } from '../../../services/receiptService';
-import { printReceipt, UnifiedReceiptInput } from '../../../services/receiptExportService';
+import { UnifiedReceiptInput } from '../../../services/receiptExportService';
 import { getPaymentStatusInfo } from '../../common/PaymentStatusBadge';
 
 export default function OtherBusinessReceiptScreen() {
@@ -188,8 +187,8 @@ export default function OtherBusinessReceiptScreen() {
       ? Number(breakdown.payable_amount)
       : effectiveNumericAmount;
 
-  const [isPrinting, setIsPrinting] = useState(false);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
+  const [autoPrintThermal, setAutoPrintThermal] = useState(false);
 
   const paymentStatusVal = receiptData?.payment_status || params.payment_status || 'PAID';
   const reasonVal = receiptData?.reason || params.reason || null;
@@ -249,18 +248,13 @@ export default function OtherBusinessReceiptScreen() {
   ]);
 
   const handleOpenShareMenu = () => {
+    setAutoPrintThermal(false);
     setIsShareModalVisible(true);
   };
 
-  const handlePrint = async () => {
-    try {
-      setIsPrinting(true);
-      await printReceipt(receiptInput);
-    } catch (error) {
-      console.error('Error printing receipt:', error);
-    } finally {
-      setIsPrinting(false);
-    }
+  const handlePrint = () => {
+    setAutoPrintThermal(true);
+    setIsShareModalVisible(true);
   };
 
   const handleCopyPaymentId = () => {
@@ -526,14 +520,9 @@ export default function OtherBusinessReceiptScreen() {
             <TouchableOpacity
               style={styles.printBtn}
               onPress={handlePrint}
-              disabled={isPrinting}
               activeOpacity={0.85}
             >
-              {isPrinting ? (
-                <ActivityIndicator size="small" color="#0F172A" style={{ marginRight: 6 }} />
-              ) : (
-                <Ionicons name="print-outline" size={17} color="#0F172A" style={{ marginRight: 6 }} />
-              )}
+              <Ionicons name="print-outline" size={17} color="#0F172A" style={{ marginRight: 6 }} />
               <Text style={styles.printBtnText} numberOfLines={1} adjustsFontSizeToFit>
                 Print Digital Receipt
               </Text>
@@ -559,8 +548,12 @@ export default function OtherBusinessReceiptScreen() {
       {/* ── UNIFIED RECEIPT SHARE MODAL (PNG, GIF, PDF) ── */}
       <ReceiptShareModal
         visible={isShareModalVisible}
-        onClose={() => setIsShareModalVisible(false)}
+        onClose={() => {
+          setIsShareModalVisible(false);
+          setAutoPrintThermal(false);
+        }}
         receiptInput={receiptInput}
+        autoPrintThermal={autoPrintThermal}
       />
     </View>
   );

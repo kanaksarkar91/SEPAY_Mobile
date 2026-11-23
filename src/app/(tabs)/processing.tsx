@@ -20,8 +20,6 @@ import { addTransaction } from '../../services/transactionStore';
 import { calculateFee, type PaymentMethodType } from '../../utils/feeCalculator';
 import { paymentSession } from '../../services/paymentSession';
 import { dashboardService } from '../../services/dashboardService';
-import { appLogger } from '../../services/appLogger';
-import { DiagnosticLogsModal } from '../../components/common/DiagnosticLogsModal';
 
 const RING_SIZE = 210;
 const STROKE_WIDTH = 5.5;
@@ -52,7 +50,6 @@ export default function ProcessingScreen() {
   const [errorReason, setErrorReason] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isPaymentCompleted, setIsPaymentCompleted] = useState(false);
-  const [showLogsModal, setShowLogsModal] = useState(false);
 
   const rawAmount = params.amount || '0';
   const numericAmount = parseFloat(rawAmount) || 0;
@@ -351,27 +348,6 @@ export default function ProcessingScreen() {
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Diagnostic & Logs Sharing Options */}
-          <View style={styles.diagnosticsContainer}>
-            <TouchableOpacity
-              style={styles.shareLogsBtn}
-              onPress={() => appLogger.shareLogs()}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="share-social-outline" size={16} color="#0F172A" style={{ marginRight: 6 }} />
-              <Text style={styles.shareLogsBtnText}>Share Error & Debug Logs</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.viewLogsBtn}
-              onPress={() => setShowLogsModal(true)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="terminal-outline" size={16} color="#64748B" style={{ marginRight: 6 }} />
-              <Text style={styles.viewLogsBtnText}>View In-App Logs</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       ) : (
         /* ── Central Processing Container ── */
@@ -463,11 +439,6 @@ export default function ProcessingScreen() {
           <Text style={styles.subtitle}>{"Please don't remove or move the card."}</Text>
         </View>
       )}
-
-      <DiagnosticLogsModal
-        visible={showLogsModal}
-        onClose={() => setShowLogsModal(false)}
-      />
 
       {/* Non-dismissible touch shield while payment is actively in-flight to prevent screen dismissals */}
       {!isFailed && !isPaymentCompleted && (

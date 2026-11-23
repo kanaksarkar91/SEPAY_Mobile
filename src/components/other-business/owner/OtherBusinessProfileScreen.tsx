@@ -38,7 +38,6 @@ import {
   formatSydneyShiftRange,
 } from '../../../utils/dateUtils';
 import { useConfirmModal } from '../../../context/ConfirmModalContext';
-import { DiagnosticLogsModal } from '../../common/DiagnosticLogsModal';
 
 export default function OtherBusinessProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -62,7 +61,6 @@ export default function OtherBusinessProfileScreen() {
   // Bank Details Modals
   const [isBankModalVisible, setIsBankModalVisible] = useState(false);
   const [isUpdateBankModalVisible, setIsUpdateBankModalVisible] = useState(false);
-  const [isLogsModalVisible, setIsLogsModalVisible] = useState(false);
 
   // Current Bank Account Information
   const [accountName, setAccountName] = useState('');
@@ -680,7 +678,7 @@ export default function OtherBusinessProfileScreen() {
 
         {/* ── 2. DYNAMIC MENU ACTION CARDS (Rendered from data.menu_options) ── */}
         <View style={styles.actionCardsList}>
-          {(profileData?.menu_options || []).map((item) => (
+          {(profileData?.menu_options || []).filter((item) => item.key !== 'app_logs' && item.key !== 'diagnostics').map((item) => (
             <TouchableOpacity
               key={item.key}
               style={styles.actionCard}
@@ -719,14 +717,14 @@ export default function OtherBusinessProfileScreen() {
           ))}
         </View>
 
-        {/* ── DIAGNOSTIC LOGS BUTTON ── */}
+        {/* ── BLUETOOTH THERMAL PRINTER BUTTON ── */}
         <TouchableOpacity
           style={styles.diagLogsButton}
-          onPress={() => setIsLogsModalVisible(true)}
+          onPress={() => router.push('/printer-settings')}
           activeOpacity={0.8}
         >
-          <Ionicons name="terminal-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
-          <Text style={styles.diagLogsButtonText}>Diagnostics & App Logs</Text>
+          <Feather name="printer" size={16} color="#0F172A" style={{ marginRight: 8 }} />
+          <Text style={styles.diagLogsButtonText}>Bluetooth Thermal Printer</Text>
         </TouchableOpacity>
 
         {/* ── 3. LOG OUT BUTTON ── */}
@@ -1077,10 +1075,6 @@ export default function OtherBusinessProfileScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <DiagnosticLogsModal
-        visible={isLogsModalVisible}
-        onClose={() => setIsLogsModalVisible(false)}
-      />
     </View>
   );
 }

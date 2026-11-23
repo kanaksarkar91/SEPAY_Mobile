@@ -26,7 +26,7 @@ import {
 } from '../../../services/dashboardService';
 import { shiftService, onShiftChange } from '../../../services/shiftService';
 import { receiptService } from '../../../services/receiptService';
-import { printReceipt, buildReceiptInputFromRecentTxn } from '../../../services/receiptExportService';
+import { buildReceiptInputFromRecentTxn } from '../../../services/receiptExportService';
 import { formatSydneyToUserTime, formatSydneyShiftRange, formatTxnTime } from '../../../utils/dateUtils';
 
 interface TaxiOwnerDashboardProps {
@@ -201,6 +201,7 @@ export default function TaxiOwnerDashboard({
   // Reprint & Share Receipt State
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [isShareModalVisible, setIsShareModalVisible] = useState<boolean>(false);
+  const [autoPrintThermal, setAutoPrintThermal] = useState<boolean>(false);
   const [selectedTxnForShare, setSelectedTxnForShare] = useState<RecentTransactionItem | null>(null);
 
   const handleReprintReceipt = async (txn: RecentTransactionItem) => {
@@ -219,15 +220,11 @@ export default function TaxiOwnerDashboard({
           console.warn('[TaxiOwnerDashboard] Failed to fetch fresh receipt, using item data:', fetchErr);
         }
       }
-      const receiptInput = buildReceiptInputFromRecentTxn(
-        targetTxn,
-        businessName,
-        userName,
-        true
-      );
-      await printReceipt(receiptInput);
+      setSelectedTxnForShare(targetTxn);
+      setAutoPrintThermal(true);
+      setIsShareModalVisible(true);
     } catch (error) {
-      console.warn('Print error or canceled:', error);
+      console.warn('Reprint error:', error);
     } finally {
       setIsPrinting(false);
     }
@@ -248,6 +245,7 @@ export default function TaxiOwnerDashboard({
       }
     }
     setSelectedTxnForShare(targetTxn);
+    setAutoPrintThermal(false);
     setIsShareModalVisible(true);
   };
 
@@ -869,8 +867,12 @@ export default function TaxiOwnerDashboard({
       {/* Receipt Share Modal */}
       <ReceiptShareModal
         visible={isShareModalVisible}
-        onClose={() => setIsShareModalVisible(false)}
+        onClose={() => {
+          setIsShareModalVisible(false);
+          setAutoPrintThermal(false);
+        }}
         receiptInput={selectedShareReceiptInput}
+        autoPrintThermal={autoPrintThermal}
       />
     </View>
   );

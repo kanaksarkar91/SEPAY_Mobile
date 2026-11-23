@@ -26,7 +26,6 @@ import {
 } from '../../../services/shiftService';
 import { receiptService } from '../../../services/receiptService';
 import {
-  printReceipt,
   printShiftSlip,
   shareShiftSlip,
   UnifiedReceiptInput,
@@ -64,6 +63,7 @@ export default function OtherBusinessShiftDetailsScreen({
   // Share & Print States
   const [selectedTxnForShare, setSelectedTxnForShare] = useState<ShiftDetailsTransactionItem | null>(null);
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
+  const [autoPrintThermal, setAutoPrintThermal] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
   // API State
@@ -363,13 +363,27 @@ export default function OtherBusinessShiftDetailsScreen({
     };
   }, [shiftDetails, userName, businessName, shiftId, shiftTime]);
 
-  // Reprint Receipt via native print dialog
+  // Reprint Receipt via Bluetooth Thermal Printer
   const handleReprint = async (txn: ShiftDetailsTransactionItem) => {
     try {
       setIsPrinting(true);
-      await printReceipt(getTxnReceiptInput(txn));
+      let targetTxn = txn;
+      const payId = txn.receipt?.payment_id || txn.transaction_id || (txn.id != null ? String(txn.id) : '');
+      if (payId) {
+        try {
+          const freshReceipt = await receiptService.getReceipt(payId);
+          if (freshReceipt) {
+            targetTxn = { ...targetTxn, receipt: freshReceipt as any };
+          }
+        } catch (fetchErr) {
+          console.warn('[OtherBusinessShiftDetailsScreen] Failed to fetch fresh receipt, using item data:', fetchErr);
+        }
+      }
+      setSelectedTxnForShare(targetTxn);
+      setAutoPrintThermal(true);
+      setIsShareModalVisible(true);
     } catch (error) {
-      console.warn('Print error or canceled:', error);
+      console.warn('Reprint error:', error);
     } finally {
       setIsPrinting(false);
     }
@@ -390,6 +404,7 @@ export default function OtherBusinessShiftDetailsScreen({
       }
     }
     setSelectedTxnForShare(targetTxn);
+    setAutoPrintThermal(false);
     setIsShareModalVisible(true);
   };
 
@@ -934,8 +949,12 @@ export default function OtherBusinessShiftDetailsScreen({
       {/* ── UNIFIED RECEIPT SHARE MODAL (PNG, GIF, PDF) ── */}
       <ReceiptShareModal
         visible={isShareModalVisible}
-        onClose={() => setIsShareModalVisible(false)}
+        onClose={() => {
+          setIsShareModalVisible(false);
+          setAutoPrintThermal(false);
+        }}
         receiptInput={selectedShareReceiptInput}
+        autoPrintThermal={autoPrintThermal}
       />
     </View>
   );

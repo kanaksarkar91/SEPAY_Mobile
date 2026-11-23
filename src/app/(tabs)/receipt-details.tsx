@@ -7,7 +7,6 @@ import {
   StatusBar,
   ScrollView,
   Image,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +19,7 @@ import { getPaymentStatusInfo } from '../../components/common/PaymentStatusBadge
 import { OtherBusinessReceiptScreen } from '../../components/other-business';
 import { normalizeImageUrl } from '../../utils/assetUtils';
 import { receiptService, ReceiptData } from '../../services/receiptService';
-import { printReceipt, UnifiedReceiptInput } from '../../services/receiptExportService';
+import { UnifiedReceiptInput } from '../../services/receiptExportService';
 import { formatSydneyToUserDateTime } from '../../utils/dateUtils';
 
 function TaxiReceiptScreen() {
@@ -213,7 +212,7 @@ function TaxiReceiptScreen() {
       : effectiveNumericAmount;
 
   const [isShareModalVisible, setIsShareModalVisible] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
+  const [autoPrintThermal, setAutoPrintThermal] = useState(false);
 
   const paymentStatusVal = receiptData?.payment_status || params.payment_status || 'PAID';
   const reasonVal = receiptData?.reason || params.reason || null;
@@ -269,18 +268,13 @@ function TaxiReceiptScreen() {
   ]);
 
   const handleOpenShareMenu = () => {
+    setAutoPrintThermal(false);
     setIsShareModalVisible(true);
   };
 
-  const handlePrint = async () => {
-    try {
-      setIsPrinting(true);
-      await printReceipt(receiptInput);
-    } catch (error) {
-      console.error('Error printing receipt:', error);
-    } finally {
-      setIsPrinting(false);
-    }
+  const handlePrint = () => {
+    setAutoPrintThermal(true);
+    setIsShareModalVisible(true);
   };
 
   const handleCopyPaymentId = () => {
@@ -607,14 +601,9 @@ function TaxiReceiptScreen() {
             <TouchableOpacity
               style={styles.printBtn}
               onPress={handlePrint}
-              disabled={isPrinting}
               activeOpacity={0.85}
             >
-              {isPrinting ? (
-                <ActivityIndicator size="small" color="#0F172A" style={{ marginRight: 6 }} />
-              ) : (
-                <Ionicons name="print-outline" size={17} color="#0F172A" style={{ marginRight: 6 }} />
-              )}
+              <Ionicons name="print-outline" size={17} color="#0F172A" style={{ marginRight: 6 }} />
               <Text style={styles.printBtnText} numberOfLines={1} adjustsFontSizeToFit>
                 Print Digital Receipt
               </Text>
@@ -637,8 +626,12 @@ function TaxiReceiptScreen() {
       {/* ── UNIFIED RECEIPT SHARE MODAL (PNG, GIF, PDF) ── */}
       <ReceiptShareModal
         visible={isShareModalVisible}
-        onClose={() => setIsShareModalVisible(false)}
+        onClose={() => {
+          setIsShareModalVisible(false);
+          setAutoPrintThermal(false);
+        }}
         receiptInput={receiptInput}
+        autoPrintThermal={autoPrintThermal}
       />
     </View>
   );

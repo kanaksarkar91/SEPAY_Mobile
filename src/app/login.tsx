@@ -233,6 +233,16 @@ export default function LoginScreen() {
             <View style={styles.versionWrap}>
               <Text style={styles.versionText}>{APP_CONFIG.displayVersion}</Text>
             </View>
+
+            {/* Thermal Printer Quick Setup Chip */}
+            <TouchableOpacity
+              style={styles.printerTestChip}
+              activeOpacity={0.75}
+              onPress={() => router.push('/printer-settings')}
+            >
+              <Feather name="printer" size={13} color="#D97706" style={{ marginRight: 6 }} />
+              <Text style={styles.printerTestChipText}>🖨️ Thermal Printer Setup</Text>
+            </TouchableOpacity>
           </View>
         </TouchableWithoutFeedback>
       </ScrollView>
@@ -455,5 +465,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000000ff',
     letterSpacing: 1.5,
+  },
+  printerTestChip: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1.5,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  printerTestChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#92400E',
   },
 });

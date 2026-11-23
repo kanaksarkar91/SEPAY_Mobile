@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { captureRef } from 'react-native-view-shot';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { useConfirmModal } from '../../context/ConfirmModalContext';
 import { animatedGifService } from '../../services/animatedGifService';
+import { printerService } from '../../services/printerService';
 import {
   UnifiedReceiptInput,
   formatReceiptAmount,
@@ -33,57 +35,74 @@ export interface ReceiptShareModalProps {
   visible: boolean;
   onClose: () => void;
   receiptInput: UnifiedReceiptInput | null;
+  autoPrintThermal?: boolean;
 }
 
 export default function ReceiptShareModal({
   visible,
   onClose,
   receiptInput,
+  autoPrintThermal = false,
 }: ReceiptShareModalProps) {
   const insets = useSafeAreaInsets();
-  const { showAlert } = useConfirmModal();
+  const router = useRouter();
+  const { showAlert, showConfirm } = useConfirmModal();
   const [isSharing, setIsSharing] = useState(false);
-  const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | null>(null);
+  const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | 'thermal' | null>(null);
+  const [printerState, setPrinterState] = useState(printerService.getState());
+
+  useEffect(() => {
+    return printerService.subscribe((s) => {
+      setPrinterState({ ...s });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      printerService.refreshPrinterStatus();
+    }
+  }, [visible]);
 
   const sharingLabels: Record<string, string> = {
     photo: 'Generating Image…',
     gif: 'Creating Animated Card…',
     pdf: 'Preparing PDF…',
+    thermal: 'Printing Receipt…',
   };
 
   const receiptCardRef = useRef<View>(null);
   const adBannerCardRef = useRef<View>(null);
+  const thermalReceiptCardRef = useRef<View>(null);
 
-  if (!receiptInput) {
-    return null;
-  }
-
-  const { whole, cents } = formatReceiptAmount(receiptInput.amount);
-  const biz = receiptInput.businessName || '--';
-  const logoUrl = normalizeImageUrl(receiptInput.businessLogo);
-  const abnVal = receiptInput.abn || '--';
-  const phoneVal = receiptInput.phone || '--';
-  const isTaxi = Boolean(receiptInput.isTaxi || receiptInput.taxiNumber);
-  const taxiNo = receiptInput.taxiNumber || '';
-  const dcNo = receiptInput.dcNumber || '';
-  const staff = receiptInput.staffName || 'Staff Member';
-  const staffCode = receiptInput.staffEmpId || '';
-  const pickup = receiptInput.pickup || '';
-  const dropoff = receiptInput.dropoff || '';
+  const { whole, cents } = formatReceiptAmount(receiptInput?.amount);
+  const biz = receiptInput?.businessName || '--';
+  const logoUrl = normalizeImageUrl(receiptInput?.businessLogo);
+  const abnVal = receiptInput?.abn || '--';
+  const phoneVal = receiptInput?.phone || '--';
+  const isTaxi =
+    receiptInput?.isTaxi !== undefined
+      ? Boolean(receiptInput.isTaxi)
+      : Boolean(receiptInput?.taxiNumber && receiptInput?.taxiNumber !== '--');
+  const taxiNo = receiptInput?.taxiNumber && receiptInput.taxiNumber !== '--' ? receiptInput.taxiNumber : '';
+  const dcNo = receiptInput?.dcNumber && receiptInput.dcNumber !== '--' ? receiptInput.dcNumber : '';
+  const staff = receiptInput?.staffName || '';
+  const staffCode = receiptInput?.staffEmpId || '';
+  const pickup = receiptInput?.pickup || '';
+  const dropoff = receiptInput?.dropoff || '';
   const hasRoute = Boolean(pickup || dropoff);
-  const methodStr = `${receiptInput.paymentMethod || ''} ${receiptInput.paymentType || ''}`.toLowerCase();
+  const methodStr = `${receiptInput?.paymentMethod || ''} ${receiptInput?.paymentType || ''}`.toLowerCase();
   const isCash = methodStr.includes('cash');
   const isTap = !isCash && (methodStr.includes('tap') || methodStr.includes('contactless') || methodStr.includes('nfc'));
-  const cardBrand = (receiptInput.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
-  const paymentMethodLabel = receiptInput.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
-  const payId = receiptInput.paymentId || '--';
-  const dt = receiptInput.dateTime || formatSydneyToUserDateTime(new Date());
+  const cardBrand = (receiptInput?.cardBrand || (isCash ? 'CASH' : isTap ? 'TAP & GO' : 'VISA')).toUpperCase();
+  const paymentMethodLabel = receiptInput?.paymentMethod || (isCash ? 'Cash' : isTap ? 'Tap & Go' : 'Card');
+  const payId = receiptInput?.paymentId || '--';
+  const dt = receiptInput?.dateTime || formatSydneyToUserDateTime(new Date());
 
-  const statusInfo = getPaymentStatusInfo(receiptInput.paymentStatus, receiptInput.reason);
+  const statusInfo = getPaymentStatusInfo(receiptInput?.paymentStatus, receiptInput?.reason);
 
-  const bk = receiptInput.breakdown;
+  const bk = receiptInput?.breakdown;
   const bkTotal =
-    bk?.payable_amount !== undefined ? Number(bk.payable_amount) : Number(receiptInput.amount) || 0;
+    bk?.payable_amount !== undefined ? Number(bk.payable_amount) : Number(receiptInput?.amount) || 0;
   const bkFee = bk?.service_fee !== undefined ? Number(bk.service_fee) : 0;
   const bkBase =
     bk?.base_amount !== undefined
@@ -91,11 +110,103 @@ export default function ReceiptShareModal({
       : Math.max(0, bkTotal - bkFee);
   const hasBk = true;
 
-  const hasAd = Boolean(receiptInput.hasAdBanner && receiptInput.bannerImageUrl);
-  const bannerUrl = normalizeImageUrl(receiptInput.bannerImageUrl);
+  const hasAd = Boolean(receiptInput?.hasAdBanner && receiptInput?.bannerImageUrl);
+  const bannerUrl = normalizeImageUrl(receiptInput?.bannerImageUrl);
+
+  // 0. Print via 58mm Bluetooth Thermal Printer
+  const handlePrintThermalReceipt = async () => {
+    if (!receiptInput) return;
+    try {
+      setIsSharing(true);
+      setSharingFormat('thermal');
+
+      if (!thermalReceiptCardRef.current) {
+        throw new Error('Receipt view is not ready');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const capturePromise = captureRef(thermalReceiptCardRef, {
+        format: 'png',
+        quality: 1.0,
+        result: 'base64',
+        width: 384,
+      });
+      const timeoutPromise = new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('Receipt image capture timed out')), 10000)
+      );
+      const base64Png = await Promise.race([capturePromise, timeoutPromise]);
+
+      const res = await printerService.printReceiptImage(base64Png);
+      if (!res.success) {
+        if (
+          res.error?.includes('Printer Settings') ||
+          res.error?.includes('No thermal printer connected') ||
+          res.error?.includes('not connected')
+        ) {
+          showConfirm({
+            title: 'Printer Not Connected',
+            message: 'No thermal printer is connected. Would you like to configure your printer in Printer Settings?',
+            type: 'warning',
+            confirmText: 'Open Settings',
+            cancelText: 'Cancel',
+            onConfirm: () => {
+              onClose();
+              router.push('/printer-settings');
+            },
+          });
+        } else {
+          showAlert({
+            title: 'Printer Notice',
+            message: res.error || 'Failed to print receipt. Please check printer power and paper.',
+            type: 'warning',
+          });
+        }
+        if (autoPrintThermal) {
+          onClose();
+        }
+        return;
+      }
+
+      showAlert({
+        title: 'Receipt Printed',
+        message: 'Receipt sent successfully to thermal printer!',
+        type: 'success',
+      });
+      onClose();
+    } catch (error: any) {
+      console.error('Error printing thermal receipt:', error);
+      showAlert({
+        title: 'Print Error',
+        message: error?.message || 'Unable to print receipt. Please try again.',
+        type: 'danger',
+      });
+      if (autoPrintThermal) {
+        onClose();
+      }
+    } finally {
+      setIsSharing(false);
+      setSharingFormat(null);
+    }
+  };
+
+  // Auto-trigger thermal print when opened with autoPrintThermal=true
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (visible && autoPrintThermal && receiptInput && !isSharing) {
+      timer = setTimeout(() => {
+        handlePrintThermalReceipt();
+      }, 100);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, autoPrintThermal, receiptInput]);
 
   // 1. Share as Image (PNG)
   const handleSharePhoto = async () => {
+    if (!receiptInput) return;
     try {
       setIsSharing(true);
       setSharingFormat('photo');
@@ -191,6 +302,7 @@ export default function ReceiptShareModal({
 
   // 2. Share as Animated Card (GIF)
   const handleShareAnimatedGif = async () => {
+    if (!receiptInput) return;
     let receiptTmpUri: string | null = null;
     let adTmpUri: string | null = null;
     try {
@@ -327,6 +439,7 @@ export default function ReceiptShareModal({
 
   // 3. Share as PDF Document
   const handleSharePdf = async () => {
+    if (!receiptInput) return;
     try {
       setIsSharing(true);
       setSharingFormat('pdf');
@@ -419,6 +532,10 @@ export default function ReceiptShareModal({
     }
   };
 
+  if (!receiptInput) {
+    return null;
+  }
+
   return (
     <>
       {/* ── HIDDEN OFFSCREEN CARDS FOR HIGH-RESOLUTION PNG & GIF CAPTURE ── */}
@@ -427,21 +544,23 @@ export default function ReceiptShareModal({
           {/* Main Receipt Card to Capture */}
           <View style={styles.offscreenCardWrap} collapsable={false}>
             <View ref={receiptCardRef} collapsable={false} style={styles.shareReceiptCard}>
-              <View style={styles.shareBadgeWrap}>
-                {logoUrl ? (
-                  <Image
-                    source={{ uri: logoUrl }}
-                    style={styles.shareLogoImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Image
-                    source={require('../../../assets/taxi-logo.png')}
-                    style={styles.shareLogoImage}
-                    resizeMode="cover"
-                  />
-                )}
-              </View>
+              {(logoUrl || isTaxi) && (
+                <View style={styles.shareBadgeWrap}>
+                  {logoUrl ? (
+                    <Image
+                      source={{ uri: logoUrl }}
+                      style={styles.shareLogoImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Image
+                      source={require('../../../assets/taxi-logo.png')}
+                      style={styles.shareLogoImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                </View>
+              )}
 
               <Text style={styles.shareBizName}>{biz}</Text>
               <Text style={styles.shareTaxInvoiceHeading}>TAX INVOICE</Text>
@@ -453,12 +572,12 @@ export default function ReceiptShareModal({
                   TAXI NO.: {taxiNo || '--'}
                   {dcNo ? `   DC: ${dcNo}` : ''}
                 </Text>
-              ) : (
+              ) : staff || staffCode ? (
                 <Text style={styles.shareBizMeta}>
-                  EMP: {staff}
-                  {staffCode ? ` (${staffCode})` : ''}
+                  EMP: {staff || staffCode}
+                  {staff && staffCode ? ` (${staffCode})` : ''}
                 </Text>
-              )}
+              ) : null}
               {receiptInput.address ? (
                 <Text style={styles.shareBizMeta}>{receiptInput.address}</Text>
               ) : null}
@@ -645,6 +764,168 @@ export default function ReceiptShareModal({
               </View>
             </View>
           )}
+
+          {/* Dedicated 58mm Bluetooth Thermal Printer Card (100% Monochrome, Zero Dot Artifacts, High Contrast) */}
+          <View style={styles.offscreenCardWrap} collapsable={false}>
+            <View ref={thermalReceiptCardRef} collapsable={false} style={styles.thermalReceiptCard}>
+              {/* Logo */}
+              {(logoUrl || isTaxi) && (
+                <View style={styles.thermalLogoWrap}>
+                  {logoUrl ? (
+                    <Image
+                      source={{ uri: logoUrl }}
+                      style={styles.thermalLogoImage}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <Image
+                      source={require('../../../assets/taxi-logo.png')}
+                      style={styles.thermalLogoImage}
+                      resizeMode="contain"
+                    />
+                  )}
+                </View>
+              )}
+
+              <Text style={styles.thermalBizName}>{biz.toUpperCase()}</Text>
+              <Text style={styles.thermalTaxInvoiceHeading}>TAX INVOICE</Text>
+              <Text style={styles.thermalBizMeta}>
+                ABN: {abnVal}   PH: {phoneVal}
+              </Text>
+              {isTaxi ? (
+                <Text style={styles.thermalBizMeta}>
+                  TAXI NO: {taxiNo || '--'}
+                  {dcNo ? `   DC: ${dcNo}` : ''}
+                </Text>
+              ) : staff || staffCode ? (
+                <Text style={styles.thermalBizMeta}>
+                  EMP: {staff || staffCode}
+                  {staff && staffCode ? ` (${staffCode})` : ''}
+                </Text>
+              ) : null}
+              {receiptInput.address ? (
+                <Text style={styles.thermalBizMeta}>{receiptInput.address}</Text>
+              ) : null}
+
+              <View style={styles.thermalDivider} />
+
+              <View style={styles.thermalAmountSection}>
+                <Text style={styles.thermalAmountLabel}>
+                  {statusInfo.isFailed
+                    ? 'TOTAL AMOUNT (FAILED)'
+                    : statusInfo.isPending
+                      ? 'TOTAL AMOUNT (PENDING)'
+                      : 'TOTAL PAID (INC GST)'}
+                </Text>
+                <View style={styles.thermalAmountWrap}>
+                  <Text style={styles.thermalDollarSign}>$ </Text>
+                  <Text style={styles.thermalAmountInt}>{whole}</Text>
+                  <Text style={styles.thermalAmountDec}>.{cents}</Text>
+                </View>
+
+                {/* Status Box: Solid clean border, pure white background, bold black text (NO DITHER DOTS) */}
+                <View style={styles.thermalStatusBox}>
+                  <View style={styles.thermalStatusDot} />
+                  <Text style={styles.thermalStatusText}>
+                    {statusInfo.isFailed ? 'FAILED' : statusInfo.isPending ? 'PENDING' : 'PAID'}
+                  </Text>
+                </View>
+
+                {/* Reason callout if failed or pending */}
+                {(statusInfo.isFailed || statusInfo.isPending) && statusInfo.reason && (
+                  <View style={styles.thermalReasonBox}>
+                    <Text style={styles.thermalReasonText}>
+                      <Text style={{ fontWeight: '900' }}>Reason: </Text>
+                      {statusInfo.reason}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.thermalDivider} />
+
+              {hasRoute && (
+                <>
+                  <View style={styles.thermalRouteSection}>
+                    <View style={styles.thermalRouteCol}>
+                      <Text style={styles.thermalRouteLabel}>PICKUP</Text>
+                      <Text style={styles.thermalRouteVal}>{pickup || '--'}</Text>
+                    </View>
+                    <Text style={styles.thermalRouteArrow}>→</Text>
+                    <View style={[styles.thermalRouteCol, { alignItems: 'flex-end' }]}>
+                      <Text style={[styles.thermalRouteLabel, { textAlign: 'right' }]}>DROP OFF</Text>
+                      <Text style={[styles.thermalRouteVal, { textAlign: 'right' }]}>{dropoff || '--'}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.thermalDivider} />
+                </>
+              )}
+
+              {hasBk && bkBase !== null && (
+                <>
+                  <View style={styles.thermalBreakdownBox}>
+                    <Text style={styles.thermalBreakdownHdr}>PAYMENT BREAKDOWN</Text>
+                    <View style={styles.thermalBreakdownRow}>
+                      <Text style={styles.thermalBreakdownLbl}>Base Amount</Text>
+                      <Text style={styles.thermalBreakdownVal}>${Number(bkBase || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.thermalBreakdownRow}>
+                      <Text style={styles.thermalBreakdownLbl}>Service Fee</Text>
+                      <Text style={styles.thermalBreakdownVal}>${Number(bkFee || 0).toFixed(2)}</Text>
+                    </View>
+                    <View style={[styles.thermalDivider, { marginVertical: 4 }]} />
+                    <View style={styles.thermalBreakdownRow}>
+                      <Text style={styles.thermalBreakdownTotalLbl}>Total (INC GST)</Text>
+                      <Text style={styles.thermalBreakdownTotalVal}>${Number(bkTotal || 0).toFixed(2)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.thermalDivider} />
+                </>
+              )}
+
+              <View style={styles.thermalMetaList}>
+                <View style={styles.thermalMetaRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.thermalMetaLabel}>Date & Time</Text>
+                    <Text style={styles.thermalMetaValue}>{dt}</Text>
+                  </View>
+                  <View style={styles.thermalMetaBadge}>
+                    <Text style={styles.thermalMetaBadgeText}>
+                      {isCash ? 'CASH' : isTap ? 'TAP & GO' : 'CARD'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.thermalMetaRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.thermalMetaLabel}>Payment Method</Text>
+                    <Text style={styles.thermalMetaValue}>{paymentMethodLabel}</Text>
+                  </View>
+                  <View style={styles.thermalMetaBadge}>
+                    <Text style={styles.thermalMetaBadgeText}>{cardBrand}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.thermalMetaRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.thermalMetaLabel}>
+                      {isCash ? 'Receipt ID' : 'Payment ID'}
+                    </Text>
+                    <Text style={styles.thermalMetaValueSmall}>{payId}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.thermalDivider} />
+
+              <View style={styles.thermalFooter}>
+                <Text style={styles.thermalThankYou}>
+                  THANK YOU FOR CHOOSING {isTaxi && taxiNo ? `TAXI ${taxiNo}` : biz.toUpperCase()}
+                </Text>
+                <Text style={styles.thermalPoweredBy}>POWERED BY SE PAY</Text>
+              </View>
+            </View>
+          </View>
         </View>
       )}
 
@@ -666,115 +947,195 @@ export default function ReceiptShareModal({
               >
                 <View style={styles.modalHandle} />
 
-                <View style={styles.modalHeaderRow}>
-                  <View>
-                    <Text style={styles.modalTitle}>Share Receipt</Text>
-                    <Text style={styles.modalSubtitle}>
-                      {isSharing && sharingFormat
-                        ? sharingLabels[sharingFormat]
-                        : 'Select your preferred format to share'}
-                    </Text>
-                  </View>
-                  {!isSharing && (
-                    <TouchableOpacity
-                      style={styles.modalCloseBtn}
-                      onPress={onClose}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                {autoPrintThermal ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 18 }}>
+                    <View
+                      style={{
+                        width: 58,
+                        height: 58,
+                        borderRadius: 29,
+                        backgroundColor: '#F1F5F9',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 14,
+                      }}
                     >
-                      <Feather name="x" size={20} color="#64748B" />
+                      <Feather name="printer" size={28} color="#0F172A" />
+                    </View>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: '#0F172A', marginBottom: 4 }}>
+                      Printing Thermal Receipt
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 18 }}>
+                      Sending receipt to Bluetooth thermal printer...
+                    </Text>
+                    <ActivityIndicator size="large" color="#0F172A" style={{ marginBottom: 20 }} />
+                    <TouchableOpacity
+                      style={[styles.modalCancelBtn, { width: '100%' }]}
+                      onPress={onClose}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modalCancelText}>Cancel</Text>
                     </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* Option 1: Share as Image (PNG) */}
-                <TouchableOpacity
-                  style={[
-                    styles.modalOptionCard,
-                    isSharing && sharingFormat === 'photo' && styles.modalOptionCardActive,
-                    isSharing && sharingFormat !== 'photo' && styles.modalOptionCardDisabled,
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={handleSharePhoto}
-                  disabled={isSharing}
-                >
-                  <View style={[styles.modalOptionIconBox, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="image-outline" size={24} color="#D97706" />
                   </View>
-                  <View style={styles.modalOptionTextWrap}>
-                    <View style={styles.modalOptionTitleRow}>
-                      <Text style={styles.modalOptionTitle}>Share as Image (PNG)</Text>
-                    </View>
-                  </View>
-                  {isSharing && sharingFormat === 'photo' ? (
-                    <ActivityIndicator size="small" color="#D97706" />
-                  ) : (
-                    <Feather name="chevron-right" size={18} color="#94A3B8" />
-                  )}
-                </TouchableOpacity>
-
-                {/* Option 2: Animated Card (GIF) when ad_banner is true */}
-                {hasAd && bannerUrl && (
-                  <TouchableOpacity
-                    style={[
-                      styles.modalOptionCard,
-                      isSharing && sharingFormat === 'gif' && styles.modalOptionCardActive,
-                      isSharing && sharingFormat !== 'gif' && styles.modalOptionCardDisabled,
-                    ]}
-                    activeOpacity={0.75}
-                    onPress={handleShareAnimatedGif}
-                    disabled={isSharing}
-                  >
-                    <View style={[styles.modalOptionIconBox, { backgroundColor: '#F3E8FF' }]}>
-                      <Ionicons name="film-outline" size={24} color="#9333EA" />
-                    </View>
-                    <View style={styles.modalOptionTextWrap}>
-                      <View style={styles.modalOptionTitleRow}>
-                        <Text style={styles.modalOptionTitle}>Share Animated Card</Text>
+                ) : (
+                  <>
+                    <View style={styles.modalHeaderRow}>
+                      <View>
+                        <Text style={styles.modalTitle}>Share Receipt</Text>
+                        <Text style={styles.modalSubtitle}>
+                          {isSharing && sharingFormat
+                            ? sharingLabels[sharingFormat]
+                            : 'Select your preferred format to share'}
+                        </Text>
                       </View>
+                      {!isSharing && (
+                        <TouchableOpacity
+                          style={styles.modalCloseBtn}
+                          onPress={onClose}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Feather name="x" size={20} color="#64748B" />
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {isSharing && sharingFormat === 'gif' ? (
-                      <ActivityIndicator size="small" color="#9333EA" />
-                    ) : (
-                      <Feather name="chevron-right" size={18} color="#94A3B8" />
+
+                    {/* Option 0: Thermal Bluetooth Printer */}
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOptionCard,
+                        isSharing && sharingFormat === 'thermal' && styles.modalOptionCardActive,
+                        isSharing && sharingFormat !== 'thermal' && styles.modalOptionCardDisabled,
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={handlePrintThermalReceipt}
+                      disabled={isSharing}
+                    >
+                      <View style={[styles.modalOptionIconBox, { backgroundColor: '#F1F5F9' }]}>
+                        <Feather name="printer" size={22} color="#0F172A" />
+                      </View>
+                      <View style={styles.modalOptionTextWrap}>
+                        <View style={styles.modalOptionTitleRow}>
+                          <Text style={styles.modalOptionTitle}>Print Receipt (Thermal Printer)</Text>
+                        </View>
+                        <Text style={styles.modalOptionSubtitle}>
+                          {printerState.connectedDevice
+                            ? `Connected: ${printerState.connectedDevice?.name || 'Printer'}${
+                                printerState.batteryLevel !== null && printerState.batteryLevel >= 0
+                                  ? ` • ${printerState.batteryLevel}% 🔋`
+                                  : ''
+                              }${printerState.hasPaper === false ? ' • ⚠️ Out of Paper' : ''}`
+                            : 'Tap to print or connect printer'}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.modalOptionSettingsBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          onClose();
+                          router.push('/printer-settings');
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="settings" size={17} color="#64748B" />
+                      </TouchableOpacity>
+                      {isSharing && sharingFormat === 'thermal' ? (
+                        <ActivityIndicator size="small" color="#0F172A" />
+                      ) : (
+                        <Feather name="chevron-right" size={18} color="#94A3B8" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 1: Share as Image (PNG) */}
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOptionCard,
+                        isSharing && sharingFormat === 'photo' && styles.modalOptionCardActive,
+                        isSharing && sharingFormat !== 'photo' && styles.modalOptionCardDisabled,
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={handleSharePhoto}
+                      disabled={isSharing}
+                    >
+                      <View style={[styles.modalOptionIconBox, { backgroundColor: '#FEF3C7' }]}>
+                        <Ionicons name="image-outline" size={24} color="#D97706" />
+                      </View>
+                      <View style={styles.modalOptionTextWrap}>
+                        <View style={styles.modalOptionTitleRow}>
+                          <Text style={styles.modalOptionTitle}>Share as Image (PNG)</Text>
+                        </View>
+                      </View>
+                      {isSharing && sharingFormat === 'photo' ? (
+                        <ActivityIndicator size="small" color="#D97706" />
+                      ) : (
+                        <Feather name="chevron-right" size={18} color="#94A3B8" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Option 2: Animated Card (GIF) when ad_banner is true */}
+                    {hasAd && bannerUrl && (
+                      <TouchableOpacity
+                        style={[
+                          styles.modalOptionCard,
+                          isSharing && sharingFormat === 'gif' && styles.modalOptionCardActive,
+                          isSharing && sharingFormat !== 'gif' && styles.modalOptionCardDisabled,
+                        ]}
+                        activeOpacity={0.75}
+                        onPress={handleShareAnimatedGif}
+                        disabled={isSharing}
+                      >
+                        <View style={[styles.modalOptionIconBox, { backgroundColor: '#F3E8FF' }]}>
+                          <Ionicons name="film-outline" size={24} color="#9333EA" />
+                        </View>
+                        <View style={styles.modalOptionTextWrap}>
+                          <View style={styles.modalOptionTitleRow}>
+                            <Text style={styles.modalOptionTitle}>Share Animated Card</Text>
+                          </View>
+                        </View>
+                        {isSharing && sharingFormat === 'gif' ? (
+                          <ActivityIndicator size="small" color="#9333EA" />
+                        ) : (
+                          <Feather name="chevron-right" size={18} color="#94A3B8" />
+                        )}
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+
+                    {/* Option 3: PDF Document */}
+                    <TouchableOpacity
+                      style={[
+                        styles.modalOptionCard,
+                        isSharing && sharingFormat === 'pdf' && styles.modalOptionCardActive,
+                        isSharing && sharingFormat !== 'pdf' && styles.modalOptionCardDisabled,
+                      ]}
+                      activeOpacity={0.75}
+                      onPress={handleSharePdf}
+                      disabled={isSharing}
+                    >
+                      <View style={[styles.modalOptionIconBox, { backgroundColor: '#EFF6FF' }]}>
+                        <Ionicons name="document-text-outline" size={24} color="#2563EB" />
+                      </View>
+                      <View style={styles.modalOptionTextWrap}>
+                        <View style={styles.modalOptionTitleRow}>
+                          <Text style={styles.modalOptionTitle}>Share as PDF Document</Text>
+                        </View>
+                      </View>
+                      {isSharing && sharingFormat === 'pdf' ? (
+                        <ActivityIndicator size="small" color="#2563EB" />
+                      ) : (
+                        <Feather name="chevron-right" size={18} color="#94A3B8" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Cancel Button */}
+                    <TouchableOpacity
+                      style={[styles.modalCancelBtn, isSharing && { opacity: 0.4 }]}
+                      onPress={onClose}
+                      activeOpacity={0.7}
+                      disabled={isSharing}
+                    >
+                      <Text style={styles.modalCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-
-                {/* Option 3: PDF Document */}
-                <TouchableOpacity
-                  style={[
-                    styles.modalOptionCard,
-                    isSharing && sharingFormat === 'pdf' && styles.modalOptionCardActive,
-                    isSharing && sharingFormat !== 'pdf' && styles.modalOptionCardDisabled,
-                  ]}
-                  activeOpacity={0.75}
-                  onPress={handleSharePdf}
-                  disabled={isSharing}
-                >
-                  <View style={[styles.modalOptionIconBox, { backgroundColor: '#EFF6FF' }]}>
-                    <Ionicons name="document-text-outline" size={24} color="#2563EB" />
-                  </View>
-                  <View style={styles.modalOptionTextWrap}>
-                    <View style={styles.modalOptionTitleRow}>
-                      <Text style={styles.modalOptionTitle}>Share as PDF Document</Text>
-                    </View>
-                  </View>
-                  {isSharing && sharingFormat === 'pdf' ? (
-                    <ActivityIndicator size="small" color="#2563EB" />
-                  ) : (
-                    <Feather name="chevron-right" size={18} color="#94A3B8" />
-                  )}
-                </TouchableOpacity>
-
-                {/* Cancel Button */}
-                <TouchableOpacity
-                  style={[styles.modalCancelBtn, isSharing && { opacity: 0.4 }]}
-                  onPress={onClose}
-                  activeOpacity={0.7}
-                  disabled={isSharing}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -1276,6 +1637,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
   },
+  modalOptionSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  modalOptionSettingsBtn: {
+    padding: 6,
+    marginRight: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
   modalCancelBtn: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1288,5 +1661,271 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#475569',
+  },
+
+  /* Dedicated 58mm Thermal Receipt Styles (Pure Monochrome, High Contrast) */
+  thermalReceiptCard: {
+    width: 384,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingTop: 10,
+    paddingBottom: 28,
+    alignItems: 'center',
+  },
+  thermalLogoWrap: {
+    width: 86,
+    height: 86,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thermalLogoImage: {
+    width: 82,
+    height: 82,
+  },
+  thermalBizName: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000000',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  thermalTaxInvoiceHeading: {
+    fontSize: 16.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 2.5,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  thermalBizMeta: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#000000',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginTop: 2,
+  },
+  thermalDivider: {
+    width: '100%',
+    borderBottomWidth: 1.5,
+    borderColor: '#000000',
+    borderStyle: 'dashed',
+    marginVertical: 8,
+  },
+  thermalAmountSection: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  thermalAmountLabel: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  thermalAmountWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  thermalDollarSign: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#000000',
+    marginTop: 6,
+  },
+  thermalAmountInt: {
+    fontSize: 46,
+    fontWeight: '900',
+    color: '#000000',
+    lineHeight: 50,
+  },
+  thermalAmountDec: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#000000',
+    marginTop: 4,
+  },
+  thermalStatusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#000000',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+    marginTop: 4,
+    gap: 6,
+  },
+  thermalStatusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#000000',
+  },
+  thermalStatusText: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.8,
+  },
+  thermalReasonBox: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#000000',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+    marginTop: 8,
+  },
+  thermalReasonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#000000',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  thermalRouteSection: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+    marginVertical: 4,
+  },
+  thermalRouteCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  thermalRouteLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  thermalRouteVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#000000',
+    marginTop: 3,
+    lineHeight: 22,
+    flexWrap: 'wrap',
+  },
+  thermalRouteArrow: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000000',
+    paddingHorizontal: 10,
+  },
+  thermalBreakdownBox: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#000000',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 4,
+  },
+  thermalBreakdownHdr: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  thermalBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  thermalBreakdownLbl: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#000000',
+  },
+  thermalBreakdownVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#000000',
+  },
+  thermalBreakdownTotalLbl: {
+    fontSize: 15.5,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  thermalBreakdownTotalVal: {
+    fontSize: 16.5,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  thermalMetaList: {
+    width: '100%',
+    marginTop: 4,
+    gap: 8,
+  },
+  thermalMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  thermalMetaLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.3,
+  },
+  thermalMetaValue: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#000000',
+    marginTop: 2,
+  },
+  thermalMetaValueSmall: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#000000',
+    marginTop: 2,
+  },
+  thermalMetaBadge: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#000000',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  thermalMetaBadgeText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#000000',
+  },
+  thermalFooter: {
+    marginTop: 8,
+    paddingTop: 6,
+    alignItems: 'center',
+    width: '100%',
+  },
+  thermalThankYou: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  thermalPoweredBy: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    color: '#000000',
+    letterSpacing: 1,
+    marginBottom: 2,
   },
 });
