@@ -59,7 +59,7 @@
           "android": {
             "minSdkVersion": 30,
             "compileSdkVersion": 36,
-            "targetSdkVersion": 35,
+            "targetSdkVersion": 36,
             "buildArchs": ["arm64-v8a", "armeabi-v7a"],
             "usesCleartextTraffic": true,
             "extraMavenRepos": ["https://jitpack.io"],
