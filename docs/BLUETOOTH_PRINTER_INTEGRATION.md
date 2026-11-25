@@ -195,3 +195,73 @@ The following rules in `android/app/proguard-rules.pro` ensure the vendor SDK is
 -keep class com.blankj.utilcode.** { *; }
 -keep class com.lzy.okgo.** { *; }
 ```
+
+---
+
+## 7. iOS Native Implementation (`TinyPrinterModule.swift`)
+
+### A. CoreBluetooth Architecture
+Unlike Android which uses vendor `.jar` binaries, iOS utilizes a pure Swift CoreBluetooth implementation adhering strictly to the thermal printer hardware's GATT profile and packet protocol.
+
+* **Primary Service UUIDs:** `0000AE30-0000-1000-8000-00805F9B34FB`, fallback `E7810A71-73AE-499D-8C15-FAA9AEF0C3F2`, `49535343-FE7D-4AE5-8FA9-9FAFD205E455`.
+* **Write Characteristic:** `AE01`, `FF02`, `FFE1`, or `AB01` (supports `.withoutResponse`).
+* **Notify Characteristic:** `AE02`, `FF02`, or `FFE1` (for device status & battery reporting).
+
+### B. Connection Lifecycle & Zombie Prevention
+1. **Peripheral Retrieval:**
+   Peripheral lookup checks `discoveredPeripherals` cache and `centralManager.retrievePeripherals(withIdentifiers: [UUID])`.
+2. **Watchdog & Cancellation:**
+   A 15-second watchdog timer guards manual connections. If a connection times out or fails:
+   `centralManager.cancelPeripheralConnection(peripheral)` is immediately invoked so iOS does not leave a pending connection queued in the CoreBluetooth background daemon.
+3. **Disconnection Cleanup:**
+   `disconnect(address)` invalidates any active connection watchdog timer and cancels any pending connection on the central manager.
+4. **Characteristics Discovery:**
+   `onConnectionChange` with `"status": "connected"` is broadcast whenever the write characteristic is discovered and ready, regardless of whether a promise is actively awaiting.
+
+---
+
+## 8. Reverse-Engineered Thermal Protocol & Opcode Specification
+
+Every raster image print job follows an exact 8-stage byte packet sequence matching the vendor protocol:
+
+```
+[0xA4 Blackening] -> [0xAF Pulse Energy] -> [0xA6 Lattice Init] -> [0xBE Image Mode] -> [0xBD Motor Speed] -> [0xA2 Raster Rows x N] -> [0xA6 Lattice Finish] -> [0xA1 Feed Paper]
+```
+
+### Detailed Opcode Table:
+
+| Opcode | Purpose | Packet Structure | Payload Details |
+|---|---|---|---|
+| **`0xA4`** | Blackening / Density | `51 78 A4 00 01 00 <densityByte> <crc8> FF` | Light: `0x32` (CRC `0x9E`)<br>Normal: `0x33` (CRC `0x99`)<br>Dark: `0x35` (CRC `0x8B`) |
+| **`0xAF`** | Thermal Pulse Energy ($\mu s$) | `51 78 AF 00 02 00 <low> <high> <crc8> FF` | Light: `5000 µs` (`0x88, 0x13`, CRC `0x67`)<br>Normal: `6500 µs` (`0x64, 0x19`, CRC `0xEE`)<br>Dark: `7500 µs` (`0x4C, 0x1D`, CRC `0xF4`) |
+| **`0xA6`** | Matrix Calibration Init | `51 78 A6 00 0B 00 AA 55 17 38 44 5F 5F 5F 44 38 2C A1 FF` | Configures printhead strobe matrix |
+| **`0xBE`** | Print Mode (Image) | `51 78 BE 00 01 00 00 00 FF` | Selects monochrome raster graphics engine |
+| **`0xBD`** | Motor Feed Speed | `51 78 BD 00 01 00 <speedByte> <crc8> FF` | Fast Speed: `0x0A` (10) (CRC `0x36`). **Critical:** Without `0xBD`, printer firmware defaults to slowest safe fallback crawl (20–30s). |
+| **`0xA2`** | Monochrome Raster Row | `51 78 A2 00 30 00 [48 bytes payload] <crc8> FF` | 384 pixels / 8 = 48 bytes per line. 1 bit per pixel (`1` = burn black dot, `0` = paper white). |
+| **`0xA6`** | Matrix Calibration Finish | `51 78 A6 00 0B 00 AA 55 17 00 00 00 00 00 00 00 17 11 FF` | Closes printhead strobe matrix |
+| **`0xA1`** | Paper Feed | `51 78 A1 00 02 00 <lines> 00 <crc8> FF` | Default 96 lines (`0x60, 0x00`, CRC `0xF5`) feeds paper to tear bar |
+
+### Bit Mapping & Orientation Rule:
+* **Pixels to Byte:** `byteIdx = x / 8`, `bitIdx = x % 8`. Dot is black if luminance $< 160.0$.
+* **Row Scan:** Scan lines from top ($y = 0$) to bottom ($y = H - 1$) so header prints first and footer prints last.
+* **Streaming Pacing:** Pack up to 168 bytes (3 rows) per BLE write packet with a `1ms` pacing sleep matching Android vendor `setDelay(1L)`.
+
+---
+
+## 9. Auto-Connect & Human Error Resilience Architecture
+
+### Failure Modes & Human Scenarios Handled:
+
+#### 1. User taps "Print Digital Receipt" when printer is OFF or unlinked:
+* **Mechanism:** `printerService.autoConnect(timeoutMs = 3500)` runs with a fast 3.5s timeout instead of the standard 15s watchdog.
+* **Behavior:** If the printer does not respond within 3.5s, the attempt immediately aborts, rolls back `connectionStatus` to `'disconnected'`, cancels the native background connection, and presents the user with:
+  *"Printer Not Connected: No thermal printer is connected. Would you like to configure your printer in Printer Settings?"* with **[Open Settings]** and **[Cancel]**.
+
+#### 2. User taps "Cancel" or leaves modal while connecting/printing:
+* **Mechanism:** In `ReceiptShareModal.tsx`, `handleModalClose()` flags `isCancelledRef.current = true`, resets `isSharing = false`, and clears `sharingFormat = null`.
+* **Behavior:** The active async capture/print job is cleanly abandoned. No stale state or zombie promise remains.
+
+#### 3. User connects printer from Settings and returns to Receipt:
+* **Mechanism:** The modal auto-trigger `useEffect` is no longer blocked by stale `isSharing` flags.
+* **Behavior:** When returning from Settings and reopening the modal, the clean state immediately triggers `handlePrintThermalReceipt()`. The printer prints the receipt in **~2 seconds**.
+

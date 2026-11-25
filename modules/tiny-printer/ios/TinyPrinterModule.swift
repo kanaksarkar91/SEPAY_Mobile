@@ -202,6 +202,7 @@ public class TinyPrinterModule: Module {
       self.connectWatchdogTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: false) { [weak self] _ in
         guard let self = self, let p = self.connectPromise else { return }
         self.connectPromise = nil
+        self.centralManager?.cancelPeripheralConnection(peripheral)
         self.sendEvent("onConnectionChange", [
           "status": "timeout",
           "address": address,
@@ -214,8 +215,16 @@ public class TinyPrinterModule: Module {
     }
 
     Function("disconnect") { (address: String) -> Bool in
+      self.connectWatchdogTimer?.invalidate()
+      self.connectWatchdogTimer = nil
+      if let p = self.connectPromise {
+        self.connectPromise = nil
+        p.reject("ERR_CANCELLED", "Connection cancelled")
+      }
       if let peripheral = self.connectedPeripheral {
         self.centralManager?.cancelPeripheralConnection(peripheral)
+      } else if let uuid = UUID(uuidString: address), let known = self.centralManager?.retrievePeripherals(withIdentifiers: [uuid]).first {
+        self.centralManager?.cancelPeripheralConnection(known)
       }
       self.connectedPeripheral = nil
       self.writeCharacteristic = nil
@@ -391,7 +400,7 @@ public class TinyPrinterModule: Module {
       }
     }
 
-    if writeCharacteristic != nil && connectPromise != nil {
+    if writeCharacteristic != nil {
       connectWatchdogTimer?.invalidate()
       connectWatchdogTimer = nil
       let p = connectPromise
