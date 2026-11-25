@@ -25,7 +25,7 @@ export default function PrinterSettingsScreen() {
 
   const [state, setState] = useState<PrinterServiceState>(printerService.getState());
   const [devices, setDevices] = useState<BlePrinterDevice[]>([]);
-  const [density, setDensity] = useState<number>(5);
+  const [density, setDensity] = useState<number>(3);
   const [isTestPrinting, setIsTestPrinting] = useState<boolean>(false);
   const [connectingAddress, setConnectingAddress] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -393,8 +393,8 @@ export default function PrinterSettingsScreen() {
           <View style={styles.densitySelectorRow}>
             {[
               { label: 'Light', value: 2 },
-              { label: 'Normal', value: 3 },
-              { label: 'Dark (Recommended)', value: 5 },
+              { label: 'Normal (Recommended)', value: 3 },
+              { label: 'Dark', value: 5 },
             ].map((opt) => (
               <TouchableOpacity
                 key={opt.value}

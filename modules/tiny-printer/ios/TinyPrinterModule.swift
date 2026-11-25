@@ -496,7 +496,7 @@ public class TinyPrinterModule: Module {
         return
       }
 
-      // Build the complete transmission payload matching Android vendor SDK (BleOrderUtils)
+      // Build the complete transmission payload matching Android vendor SDK (BleOrderUtils / PrintDataUtils)
       var streamBuffer = [UInt8]()
       streamBuffer.reserveCapacity(128 + rasterRows.count * 56)
 
@@ -507,17 +507,32 @@ public class TinyPrinterModule: Module {
       let densityPacket: [UInt8] = [0x51, 0x78, 0xA4, 0x00, 0x01, 0x00, densityByte, densityCrc, 0xFF]
       streamBuffer.append(contentsOf: densityPacket)
 
-      // 2. Send printLattice matrix calibration command matching Android vendor SDK
+      // 2. Send thermal pulse burn energy command (0xAF) matching density
+      // Light (2): 5000 us (0x1388), Normal (3): 6500 us (0x1964), Dark (5): 7500 us (0x1D4C)
+      let energyVal: UInt16 = (density == 2) ? 5000 : ((density == 5) ? 7500 : 6500)
+      let energyLow = UInt8(energyVal & 0xFF)
+      let energyHigh = UInt8((energyVal >> 8) & 0xFF)
+      let energyCrc = TinyPrinterModule.calcCrc8([energyLow, energyHigh])
+      let energyPacket: [UInt8] = [0x51, 0x78, 0xAF, 0x00, 0x02, 0x00, energyLow, energyHigh, energyCrc, 0xFF]
+      streamBuffer.append(contentsOf: energyPacket)
+
+      // 3. Send printLattice matrix calibration command matching Android vendor SDK
       let printLatticeCmd: [UInt8] = [
         0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x38, 0x44, 0x5F, 0x5F, 0x5F, 0x44, 0x38, 0x2C, 0xA1, 0xFF
       ]
       streamBuffer.append(contentsOf: printLatticeCmd)
 
-      // 3. Send print_img mode command: 51 78 BE 00 01 00 00 00 FF
+      // 4. Send print_img mode command: 51 78 BE 00 01 00 00 00 FF
       let printImgCmd: [UInt8] = [0x51, 0x78, 0xBE, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF]
       streamBuffer.append(contentsOf: printImgCmd)
 
-      // 4. Append all raster rows (each row packet is 56 bytes: 51 78 A2 00 30 00 [48 bytes] CRC FF)
+      // 5. Send motor print speed command (0xBD) - speed 10 = fast motor feed (matches Android imgPrintSpeed = 10)
+      let speedByte: UInt8 = 0x0A
+      let speedCrc = TinyPrinterModule.calcCrc8([speedByte])
+      let speedPacket: [UInt8] = [0x51, 0x78, 0xBD, 0x00, 0x01, 0x00, speedByte, speedCrc, 0xFF]
+      streamBuffer.append(contentsOf: speedPacket)
+
+      // 6. Append all raster rows (each row packet is 56 bytes: 51 78 A2 00 30 00 [48 bytes] CRC FF)
       for rowData in rasterRows {
         streamBuffer.append(0x51)
         streamBuffer.append(0x78)
@@ -531,13 +546,13 @@ public class TinyPrinterModule: Module {
         streamBuffer.append(0xFF)
       }
 
-      // 5. Send finishLattice command after raster rows
+      // 7. Send finishLattice command after raster rows
       let finishLatticeCmd: [UInt8] = [
         0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x11, 0xFF
       ]
       streamBuffer.append(contentsOf: finishLatticeCmd)
 
-      // 6. Paper feed (96 lines) matching Android vendor BluetoothOrder.paper2
+      // 8. Paper feed (96 lines) matching Android vendor BluetoothOrder.paper2
       let feedLines: UInt8 = 96
       let feedPayload: [UInt8] = [feedLines, 0x00]
       let feedCrc = TinyPrinterModule.calcCrc8(feedPayload)
@@ -576,8 +591,8 @@ public class TinyPrinterModule: Module {
         peripheral.writeValue(data, for: writeChar, type: writeType)
         offset += length
 
-        // Pacing delay matching Android vendor SDK (2ms per chunk gives fast, smooth ~2-3s receipt print)
-        Thread.sleep(forTimeInterval: 0.002)
+        // Pacing delay matching Android vendor SDK (1ms per chunk gives fast, smooth ~2-3s receipt print)
+        Thread.sleep(forTimeInterval: 0.001)
 
         let progress = Double(offset) / Double(totalBytes)
         if progress - lastReportedProgress >= 0.05 || offset >= totalBytes {

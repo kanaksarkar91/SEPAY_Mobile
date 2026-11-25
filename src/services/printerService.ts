@@ -65,7 +65,7 @@ class PrinterService {
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
   private statusPollTimer: ReturnType<typeof setInterval> | null = null;
   private sdkInitialized = false;
-  private savedDensity = 5; // Default to 5 (Darkest / highest thermal contrast)
+  private savedDensity = 3; // Default to 3 (Normal / standard thermal contrast and high speed)
 
   private connSub: Subscription | null = null;
   private printSub: Subscription | null = null;
