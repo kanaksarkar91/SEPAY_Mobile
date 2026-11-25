@@ -447,6 +447,14 @@ public class TinyPrinterModule: Module {
     }
   }
 
+  fileprivate func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+    // BLE radio buffer drained and ready for next chunk
+  }
+
+  fileprivate func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+    // Acknowledgment for write with response
+  }
+
   // MARK: - Internal Commands & Printing
 
   private func requestDeviceStatusInternal() -> Bool {
@@ -488,57 +496,91 @@ public class TinyPrinterModule: Module {
         return
       }
 
+      // Build the complete transmission payload matching Android vendor SDK (BleOrderUtils)
+      var streamBuffer = [UInt8]()
+      streamBuffer.reserveCapacity(128 + rasterRows.count * 56)
+
       // 1. Send blackening / density command matching Android vendor SDK (0xA4)
       // Density values: 2 (light), 3 (normal), 5 (dark)
       let densityByte: UInt8 = (density == 2) ? 0x32 : ((density == 5) ? 0x35 : 0x33)
       let densityCrc: UInt8 = (density == 2) ? 0x9E : ((density == 5) ? 0x8B : 0x99)
       let densityPacket: [UInt8] = [0x51, 0x78, 0xA4, 0x00, 0x01, 0x00, densityByte, densityCrc, 0xFF]
-      self.sendBleData(Data(densityPacket), peripheral: peripheral, writeChar: writeChar)
-      Thread.sleep(forTimeInterval: 0.05)
+      streamBuffer.append(contentsOf: densityPacket)
 
       // 2. Send printLattice matrix calibration command matching Android vendor SDK
       let printLatticeCmd: [UInt8] = [
         0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x38, 0x44, 0x5F, 0x5F, 0x5F, 0x44, 0x38, 0x2C, 0xA1, 0xFF
       ]
-      self.sendBleData(Data(printLatticeCmd), peripheral: peripheral, writeChar: writeChar)
-      Thread.sleep(forTimeInterval: 0.05)
+      streamBuffer.append(contentsOf: printLatticeCmd)
 
       // 3. Send print_img mode command: 51 78 BE 00 01 00 00 00 FF
       let printImgCmd: [UInt8] = [0x51, 0x78, 0xBE, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF]
-      self.sendBleData(Data(printImgCmd), peripheral: peripheral, writeChar: writeChar)
-      Thread.sleep(forTimeInterval: 0.05)
+      streamBuffer.append(contentsOf: printImgCmd)
 
-      let totalRows = rasterRows.count
+      // 4. Append all raster rows (each row packet is 56 bytes: 51 78 A2 00 30 00 [48 bytes] CRC FF)
+      for rowData in rasterRows {
+        streamBuffer.append(0x51)
+        streamBuffer.append(0x78)
+        streamBuffer.append(0xA2)
+        streamBuffer.append(0x00)
+        streamBuffer.append(0x30) // 48 bytes payload length
+        streamBuffer.append(0x00)
+        streamBuffer.append(contentsOf: rowData)
+        let crc = TinyPrinterModule.calcCrc8(rowData)
+        streamBuffer.append(crc)
+        streamBuffer.append(0xFF)
+      }
+
+      // 5. Send finishLattice command after raster rows
+      let finishLatticeCmd: [UInt8] = [
+        0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x11, 0xFF
+      ]
+      streamBuffer.append(contentsOf: finishLatticeCmd)
+
+      // 6. Paper feed (96 lines) matching Android vendor BluetoothOrder.paper2
+      let feedLines: UInt8 = 96
+      let feedPayload: [UInt8] = [feedLines, 0x00]
+      let feedCrc = TinyPrinterModule.calcCrc8(feedPayload)
+      let feedPacket: [UInt8] = [0x51, 0x78, 0xA1, 0x00, 0x02, 0x00, feedLines, 0x00, feedCrc, 0xFF]
+      streamBuffer.append(contentsOf: feedPacket)
+
+      // High-speed MTU chunk streaming matching Android Ble.writeEntity (packLength = defMTU - 3, delay = 1ms)
+      let writeType: CBCharacteristicWriteType = writeChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+      let maxChunk = peripheral.maximumWriteValueLength(for: writeType)
+      // Standard BLE MTU chunk: up to 168 bytes (3 rows per packet) or max MTU allowed
+      let chunkSize = max(20, min(maxChunk, 168))
+
+      let totalBytes = streamBuffer.count
+      var offset = 0
       var lastReportedProgress = 0.0
 
-      // 4. Stream each row packet
-      for (index, rowData) in rasterRows.enumerated() {
+      while offset < totalBytes {
         guard self.connectedPeripheral != nil else {
           promise.reject("ERR_DISCONNECTED", "Printer disconnected during printing")
           return
         }
 
-        // Row packet: 51 78 A2 00 30 00 [48 bytes raster] <crc8> FF
-        var rowPacket = [UInt8]()
-        rowPacket.reserveCapacity(56)
-        rowPacket.append(0x51)
-        rowPacket.append(0x78)
-        rowPacket.append(0xA2)
-        rowPacket.append(0x00)
-        rowPacket.append(0x30) // 48 bytes payload length
-        rowPacket.append(0x00)
-        rowPacket.append(contentsOf: rowData)
-        let crc = TinyPrinterModule.calcCrc8(rowData)
-        rowPacket.append(crc)
-        rowPacket.append(0xFF)
+        let length = min(chunkSize, totalBytes - offset)
+        let chunkData = streamBuffer[offset..<(offset + length)]
+        let data = Data(chunkData)
 
-        self.sendBleData(Data(rowPacket), peripheral: peripheral, writeChar: writeChar)
+        // If using writeWithoutResponse, wait if the CoreBluetooth radio queue is momentarily full
+        if writeType == .withoutResponse {
+          var waitCount = 0
+          while !peripheral.canSendWriteWithoutResponse && self.connectedPeripheral != nil && waitCount < 100 {
+            Thread.sleep(forTimeInterval: 0.001)
+            waitCount += 1
+          }
+        }
 
-        // Pacing delay to give thermal printhead time to burn dots without buffer overflow
-        Thread.sleep(forTimeInterval: 0.008)
+        peripheral.writeValue(data, for: writeChar, type: writeType)
+        offset += length
 
-        let progress = Double(index + 1) / Double(totalRows)
-        if progress - lastReportedProgress >= 0.05 || index == totalRows - 1 {
+        // Pacing delay matching Android vendor SDK (2ms per chunk gives fast, smooth ~2-3s receipt print)
+        Thread.sleep(forTimeInterval: 0.002)
+
+        let progress = Double(offset) / Double(totalBytes)
+        if progress - lastReportedProgress >= 0.05 || offset >= totalBytes {
           lastReportedProgress = progress
           self.sendEvent("onPrintStatus", [
             "status": "progress",
@@ -547,18 +589,7 @@ public class TinyPrinterModule: Module {
         }
       }
 
-      // 5. Send finishLattice command after streaming all rows
-      Thread.sleep(forTimeInterval: 0.05)
-      let finishLatticeCmd: [UInt8] = [
-        0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x11, 0xFF
-      ]
-      self.sendBleData(Data(finishLatticeCmd), peripheral: peripheral, writeChar: writeChar)
-
-      // 6. Feed paper at end of receipt
-      Thread.sleep(forTimeInterval: 0.1)
-      _ = self.sendPaperFeedCommand(lines: 96)
-
-      Thread.sleep(forTimeInterval: 0.3)
+      Thread.sleep(forTimeInterval: 0.2)
       self.sendEvent("onPrintStatus", ["status": "success"])
 
       // Refresh battery and status after printing
@@ -603,10 +634,6 @@ public class TinyPrinterModule: Module {
     ) else {
       return nil
     }
-
-    // Flip context coordinate system so that row 0 in pixelData corresponds to the top of UIImage
-    context.translateBy(x: 0, y: CGFloat(height))
-    context.scaleBy(x: 1.0, y: -1.0)
 
     if let cgImage = image.cgImage {
       context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
