@@ -3,7 +3,48 @@ import CoreBluetooth
 import UIKit
 import ExpoModulesCore
 
-public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDelegate {
+private final class BleDelegateProxy: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
+  weak var owner: TinyPrinterModule?
+
+  init(owner: TinyPrinterModule) {
+    self.owner = owner
+  }
+
+  func centralManagerDidUpdateState(_ central: CBCentralManager) {
+    owner?.centralManagerDidUpdateState(central)
+  }
+
+  func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
+    owner?.centralManager(central, didDiscover: peripheral, advertisementData: advertisementData, rssi: RSSI)
+  }
+
+  func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    owner?.centralManager(central, didConnect: peripheral)
+  }
+
+  func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+    owner?.centralManager(central, didFailToConnect: peripheral, error: error)
+  }
+
+  func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+    owner?.centralManager(central, didDisconnectPeripheral: peripheral, error: error)
+  }
+
+  func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+    owner?.peripheral(peripheral, didDiscoverServices: error)
+  }
+
+  func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+    owner?.peripheral(peripheral, didDiscoverCharacteristicsFor: service, error: error)
+  }
+
+  func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+    owner?.peripheral(peripheral, didUpdateValueFor: characteristic, error: error)
+  }
+}
+
+public class TinyPrinterModule: Module {
+  private lazy var bleDelegate = BleDelegateProxy(owner: self)
   private var centralManager: CBCentralManager?
   private var discoveredPeripherals = [String: CBPeripheral]()
   private var connectedPeripheral: CBPeripheral?
@@ -58,13 +99,13 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
 
     OnCreate {
       if self.centralManager == nil {
-        self.centralManager = CBCentralManager(delegate: self, queue: .main)
+        self.centralManager = CBCentralManager(delegate: self.bleDelegate, queue: .main)
       }
     }
 
     AsyncFunction("initSdk") { (userId: String, promise: Promise) in
       if self.centralManager == nil {
-        self.centralManager = CBCentralManager(delegate: self, queue: .main)
+        self.centralManager = CBCentralManager(delegate: self.bleDelegate, queue: .main)
       }
       promise.resolve([
         "success": true,
@@ -113,7 +154,7 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
 
     AsyncFunction("startScan") { (promise: Promise) in
       guard let central = self.centralManager else {
-        self.centralManager = CBCentralManager(delegate: self, queue: .main)
+        self.centralManager = CBCentralManager(delegate: self.bleDelegate, queue: .main)
         promise.resolve(false)
         return
       }
@@ -244,7 +285,7 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
 
   // MARK: - CBCentralManagerDelegate
 
-  public func centralManagerDidUpdateState(_ central: CBCentralManager) {
+  fileprivate func centralManagerDidUpdateState(_ central: CBCentralManager) {
     if central.state != .poweredOn {
       if connectedPeripheral != nil {
         connectedPeripheral = nil
@@ -255,7 +296,7 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
     }
   }
 
-  public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
+  fileprivate func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
     let name = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? ""
     if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       return
@@ -282,13 +323,13 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
     ])
   }
 
-  public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+  fileprivate func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
     connectedPeripheral = peripheral
-    peripheral.delegate = self
+    peripheral.delegate = bleDelegate
     peripheral.discoverServices(nil)
   }
 
-  public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+  fileprivate func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
     connectWatchdogTimer?.invalidate()
     connectWatchdogTimer = nil
     if let p = connectPromise {
@@ -301,7 +342,7 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
     ])
   }
 
-  public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+  fileprivate func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
     connectedPeripheral = nil
     writeCharacteristic = nil
     notifyCharacteristic = nil
@@ -321,14 +362,14 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
 
   // MARK: - CBPeripheralDelegate
 
-  public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+  fileprivate func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
     guard error == nil, let services = peripheral.services else { return }
     for service in services {
       peripheral.discoverCharacteristics(nil, for: service)
     }
   }
 
-  public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+  fileprivate func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
     guard error == nil, let characteristics = service.characteristics else { return }
 
     for characteristic in characteristics {
@@ -376,7 +417,7 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
     }
   }
 
-  public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+  fileprivate func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
     guard error == nil, let data = characteristic.value, data.count >= 8 else { return }
 
     // Mini 58mm protocol response packet: 0x51, 0x78 ...
@@ -425,7 +466,7 @@ public class TinyPrinterModule: Module, CBCentralManagerDelegate, CBPeripheralDe
   private func sendPaperFeedCommand(lines: UInt8 = 48) -> Bool {
     guard let peripheral = connectedPeripheral, let writeChar = writeCharacteristic else { return false }
     // Feed packet: 51 78 A1 00 02 00 <lines> 00 <crc8> FF
-    var payload: [UInt8] = [lines, 0x00]
+    let payload: [UInt8] = [lines, 0x00]
     let crc = TinyPrinterModule.calcCrc8(payload)
     let packet: [UInt8] = [0x51, 0x78, 0xA1, 0x00, 0x02, 0x00, lines, 0x00, crc, 0xFF]
     sendBleData(Data(packet), peripheral: peripheral, writeChar: writeChar)
