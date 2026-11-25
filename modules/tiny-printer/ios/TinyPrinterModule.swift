@@ -488,18 +488,22 @@ public class TinyPrinterModule: Module {
         return
       }
 
-      // 1. Send energy / density command
-      // Density values: 2 (light), 3 (normal), 5 (dark) -> mapped energy 5500..7500
-      let energyVal: UInt16 = density == 5 ? 7500 : (density == 2 ? 5500 : 6500)
-      let energyLow = UInt8(energyVal & 0xFF)
-      let energyHigh = UInt8((energyVal >> 8) & 0xFF)
-      let energyPayload: [UInt8] = [energyLow, energyHigh]
-      let energyCrc = TinyPrinterModule.calcCrc8(energyPayload)
-      let energyPacket: [UInt8] = [0x51, 0x78, 0xAF, 0x00, 0x02, 0x00, energyLow, energyHigh, energyCrc, 0xFF]
-      self.sendBleData(Data(energyPacket), peripheral: peripheral, writeChar: writeChar)
+      // 1. Send blackening / density command matching Android vendor SDK (0xA4)
+      // Density values: 2 (light), 3 (normal), 5 (dark)
+      let densityByte: UInt8 = (density == 2) ? 0x32 : ((density == 5) ? 0x35 : 0x33)
+      let densityCrc: UInt8 = (density == 2) ? 0x9E : ((density == 5) ? 0x8B : 0x99)
+      let densityPacket: [UInt8] = [0x51, 0x78, 0xA4, 0x00, 0x01, 0x00, densityByte, densityCrc, 0xFF]
+      self.sendBleData(Data(densityPacket), peripheral: peripheral, writeChar: writeChar)
       Thread.sleep(forTimeInterval: 0.05)
 
-      // 2. Send print_img mode command: 51 78 BE 00 01 00 00 00 FF
+      // 2. Send printLattice matrix calibration command matching Android vendor SDK
+      let printLatticeCmd: [UInt8] = [
+        0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x38, 0x44, 0x5F, 0x5F, 0x5F, 0x44, 0x38, 0x2C, 0xA1, 0xFF
+      ]
+      self.sendBleData(Data(printLatticeCmd), peripheral: peripheral, writeChar: writeChar)
+      Thread.sleep(forTimeInterval: 0.05)
+
+      // 3. Send print_img mode command: 51 78 BE 00 01 00 00 00 FF
       let printImgCmd: [UInt8] = [0x51, 0x78, 0xBE, 0x00, 0x01, 0x00, 0x00, 0x00, 0xFF]
       self.sendBleData(Data(printImgCmd), peripheral: peripheral, writeChar: writeChar)
       Thread.sleep(forTimeInterval: 0.05)
@@ -507,7 +511,7 @@ public class TinyPrinterModule: Module {
       let totalRows = rasterRows.count
       var lastReportedProgress = 0.0
 
-      // 3. Stream each row packet
+      // 4. Stream each row packet
       for (index, rowData) in rasterRows.enumerated() {
         guard self.connectedPeripheral != nil else {
           promise.reject("ERR_DISCONNECTED", "Printer disconnected during printing")
@@ -543,7 +547,14 @@ public class TinyPrinterModule: Module {
         }
       }
 
-      // 4. Feed paper at end of receipt
+      // 5. Send finishLattice command after streaming all rows
+      Thread.sleep(forTimeInterval: 0.05)
+      let finishLatticeCmd: [UInt8] = [
+        0x51, 0x78, 0xA6, 0x00, 0x0B, 0x00, 0xAA, 0x55, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0x11, 0xFF
+      ]
+      self.sendBleData(Data(finishLatticeCmd), peripheral: peripheral, writeChar: writeChar)
+
+      // 6. Feed paper at end of receipt
       Thread.sleep(forTimeInterval: 0.1)
       _ = self.sendPaperFeedCommand(lines: 96)
 
@@ -593,8 +604,17 @@ public class TinyPrinterModule: Module {
       return nil
     }
 
+    // Flip context coordinate system so that row 0 in pixelData corresponds to the top of UIImage
+    context.translateBy(x: 0, y: CGFloat(height))
+    context.scaleBy(x: 1.0, y: -1.0)
+
     if let cgImage = image.cgImage {
       context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+    } else if let ciImage = image.ciImage {
+      let ciContext = CIContext()
+      if let cg = ciContext.createCGImage(ciImage, from: ciImage.extent) {
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+      }
     }
 
     var rows = [[UInt8]]()
@@ -611,11 +631,11 @@ public class TinyPrinterModule: Module {
 
         // Luminance calculation: black is printable, white is blank
         let luminance = a > 50 ? (0.299 * r + 0.587 * g + 0.114 * b) : 255.0
-        let isBlack = luminance < 140.0 // Dot is black / burn thermal
+        let isBlack = luminance < 160.0 // Dot is black / burn thermal
 
         if isBlack {
           let byteIdx = x / 8
-          let bitIdx = 7 - (x % 8)
+          let bitIdx = x % 8
           rowBytes[byteIdx] |= (1 << bitIdx)
         }
       }
