@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.setaxibrokers.sepay",
       "appleTeamId": "4M454SF48R",
-      "buildNumber": "13",
+      "buildNumber": "16",
       "entitlements": {
         "com.apple.developer.proximity-reader.payment.acceptance": true
       },
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.syscentric.taptopay",
-      "versionCode": 13,
+      "versionCode": 16,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
