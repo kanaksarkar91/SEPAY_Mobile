@@ -108,7 +108,7 @@ class PrinterService {
   }
 
   public isAvailable(): boolean {
-    return Platform.OS === 'android' && TinyPrinter.isAvailable();
+    return (Platform.OS === 'android' || Platform.OS === 'ios') && TinyPrinter.isAvailable();
   }
 
   private checkAvailability() {
@@ -263,40 +263,47 @@ class PrinterService {
   }
 
   public async checkPermissions(): Promise<boolean> {
-    if (Platform.OS !== 'android') return false;
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') return false;
+
+    if (Platform.OS === 'android') {
+      try {
+        const apiLevel = Number(Platform.Version);
+        if (apiLevel >= 31) {
+          const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          ]);
+          const scanOk = granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === PermissionsAndroid.RESULTS.GRANTED;
+          const connectOk = granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED;
+
+          if (!scanOk || !connectOk) {
+            Alert.alert(
+              'Permissions Required',
+              'Nearby Devices (Bluetooth) permission is required to scan and connect to thermal printers. Please allow permissions in Settings.'
+            );
+            return false;
+          }
+        } else {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            {
+              title: 'Location Permission Needed',
+              message: 'Android requires Location access to discover nearby Bluetooth devices.',
+              buttonPositive: 'Allow',
+            }
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            return false;
+          }
+        }
+      } catch (e) {
+        console.warn('[PrinterService] Permission check error:', e);
+        return false;
+      }
+    }
 
     try {
-      const apiLevel = Number(Platform.Version);
-      if (apiLevel >= 31) {
-        const granted = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        ]);
-        const scanOk = granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] === PermissionsAndroid.RESULTS.GRANTED;
-        const connectOk = granted[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED;
-
-        if (!scanOk || !connectOk) {
-          Alert.alert(
-            'Permissions Required',
-            'Nearby Devices (Bluetooth) permission is required to scan and connect to thermal printers. Please allow permissions in Settings.'
-          );
-          return false;
-        }
-      } else {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission Needed',
-            message: 'Android requires Location access to discover nearby Bluetooth devices.',
-            buttonPositive: 'Allow',
-          }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          return false;
-        }
-      }
-
       const btEnabled = TinyPrinter.isBleEnabled();
       this.updateState({ isBleEnabled: btEnabled });
       if (!btEnabled) {
@@ -318,7 +325,7 @@ class PrinterService {
 
       return true;
     } catch (e) {
-      console.warn('[PrinterService] Permission check error:', e);
+      console.warn('[PrinterService] BLE check error:', e);
       return false;
     }
   }
@@ -367,7 +374,7 @@ class PrinterService {
   }
 
   public async connect(device: BlePrinterDevice): Promise<boolean> {
-    if (!this.isAvailable()) throw new Error('Thermal printer is only supported on Android devices');
+    if (!this.isAvailable()) throw new Error('TinyPrinter thermal module is not available');
 
     this.stopScan();
     this.updateState({ connectionStatus: 'connecting' });
@@ -495,7 +502,7 @@ class PrinterService {
     density?: number
   ): Promise<{ success: boolean; error?: string }> {
     if (!this.isAvailable()) {
-      return { success: false, error: 'Thermal printing is only supported on Android physical devices.' };
+      return { success: false, error: 'TinyPrinter thermal driver is not loaded in this build.' };
     }
 
     await this.initSdk();

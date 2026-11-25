@@ -1,6 +1,9 @@
 {
   "name": "tiny-printer",
-  "platforms": ["android"],
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["TinyPrinterModule"]
+  },
   "android": {
     "modules": ["expo.modules.tinyprinter.TinyPrinterModule"]
   }

@@ -7,7 +7,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,18 +52,11 @@ export default function PrinterSettingsScreen() {
 
   // Handle Scan
   const handleStartScan = useCallback(async (showPromptOnError: boolean = true) => {
-    if (Platform.OS !== 'android') {
-      if (showPromptOnError) {
-        Alert.alert('Notice', 'Thermal printing via Bluetooth is supported on Android physical devices.');
-      }
-      return;
-    }
-
     if (!printerService.isAvailable()) {
       if (showPromptOnError) {
         Alert.alert(
           'Driver Notice',
-          'TinyPrinter native Bluetooth module is not linked in this build. A standalone release APK (assembleRelease) is required to access Bluetooth thermal printers.'
+          'TinyPrinter native Bluetooth module is not linked in this build. A custom development build or release build is required to access Bluetooth thermal printers.'
         );
       }
       setStatusMessage('TinyPrinter native driver is not loaded in this build.');
@@ -107,7 +99,7 @@ export default function PrinterSettingsScreen() {
   // Auto-scan on mount if available
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    if (Platform.OS === 'android' && printerService.isAvailable()) {
+    if (printerService.isAvailable()) {
       timer = setTimeout(() => {
         handleStartScan(false);
       }, 200);
@@ -221,13 +213,13 @@ export default function PrinterSettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Warning card when native module is missing */}
-        {!state.isAvailable && Platform.OS === 'android' && (
+        {!state.isAvailable && (
           <View style={styles.warningCard}>
             <Feather name="alert-triangle" size={18} color="#D97706" style={{ marginRight: 10, marginTop: 2 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.warningCardTitle}>Native Driver Not Loaded</Text>
               <Text style={styles.warningCardText}>
-                TinyPrinter native Bluetooth driver is not linked in this build. Please run the standalone release APK (assembleRelease) for Bluetooth thermal printing.
+                TinyPrinter native Bluetooth driver is not linked in this build. A custom development build or standalone release build is required for Bluetooth thermal printing.
               </Text>
             </View>
           </View>
