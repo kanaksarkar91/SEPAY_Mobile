@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -50,6 +50,14 @@ export default function ReceiptShareModal({
   const [isSharing, setIsSharing] = useState(false);
   const [sharingFormat, setSharingFormat] = useState<'photo' | 'gif' | 'pdf' | 'thermal' | null>(null);
   const [printerState, setPrinterState] = useState(printerService.getState());
+  const isCancelledRef = useRef(false);
+
+  const handleModalClose = useCallback(() => {
+    isCancelledRef.current = true;
+    setIsSharing(false);
+    setSharingFormat(null);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     return printerService.subscribe((s) => {
@@ -117,6 +125,7 @@ export default function ReceiptShareModal({
   const handlePrintThermalReceipt = async () => {
     if (!receiptInput) return;
     try {
+      isCancelledRef.current = false;
       setIsSharing(true);
       setSharingFormat('thermal');
 
@@ -125,6 +134,7 @@ export default function ReceiptShareModal({
       }
 
       await new Promise((resolve) => setTimeout(resolve, 80));
+      if (isCancelledRef.current) return;
 
       const capturePromise = captureRef(thermalReceiptCardRef, {
         format: 'png',
@@ -136,8 +146,11 @@ export default function ReceiptShareModal({
         setTimeout(() => reject(new Error('Receipt image capture timed out')), 10000)
       );
       const base64Png = await Promise.race([capturePromise, timeoutPromise]);
+      if (isCancelledRef.current) return;
 
       const res = await printerService.printReceiptImage(base64Png);
+      if (isCancelledRef.current) return;
+
       if (!res.success) {
         if (
           res.error?.includes('Printer Settings') ||
@@ -151,7 +164,7 @@ export default function ReceiptShareModal({
             confirmText: 'Open Settings',
             cancelText: 'Cancel',
             onConfirm: () => {
-              onClose();
+              handleModalClose();
               router.push('/printer-settings');
             },
           });
@@ -163,7 +176,7 @@ export default function ReceiptShareModal({
           });
         }
         if (autoPrintThermal) {
-          onClose();
+          handleModalClose();
         }
         return;
       }
@@ -173,8 +186,9 @@ export default function ReceiptShareModal({
         message: 'Receipt sent successfully to thermal printer!',
         type: 'success',
       });
-      onClose();
+      handleModalClose();
     } catch (error: any) {
+      if (isCancelledRef.current) return;
       console.error('Error printing thermal receipt:', error);
       showAlert({
         title: 'Print Error',
@@ -182,7 +196,7 @@ export default function ReceiptShareModal({
         type: 'danger',
       });
       if (autoPrintThermal) {
-        onClose();
+        handleModalClose();
       }
     } finally {
       setIsSharing(false);
@@ -193,7 +207,8 @@ export default function ReceiptShareModal({
   // Auto-trigger thermal print when opened with autoPrintThermal=true
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    if (visible && autoPrintThermal && receiptInput && !isSharing) {
+    if (visible && autoPrintThermal && receiptInput) {
+      isCancelledRef.current = false;
       timer = setTimeout(() => {
         handlePrintThermalReceipt();
       }, 100);
@@ -934,9 +949,9 @@ export default function ReceiptShareModal({
         visible={visible}
         transparent
         animationType="slide"
-        onRequestClose={isSharing ? undefined : onClose}
+        onRequestClose={isSharing ? undefined : handleModalClose}
       >
-        <TouchableWithoutFeedback onPress={isSharing ? undefined : onClose}>
+        <TouchableWithoutFeedback onPress={isSharing ? undefined : handleModalClose}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <View
@@ -971,7 +986,7 @@ export default function ReceiptShareModal({
                     <ActivityIndicator size="large" color="#0F172A" style={{ marginBottom: 20 }} />
                     <TouchableOpacity
                       style={[styles.modalCancelBtn, { width: '100%' }]}
-                      onPress={onClose}
+                      onPress={handleModalClose}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.modalCancelText}>Cancel</Text>
@@ -991,7 +1006,7 @@ export default function ReceiptShareModal({
                       {!isSharing && (
                         <TouchableOpacity
                           style={styles.modalCloseBtn}
-                          onPress={onClose}
+                          onPress={handleModalClose}
                           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                           <Feather name="x" size={20} color="#64748B" />
@@ -1031,7 +1046,7 @@ export default function ReceiptShareModal({
                         style={styles.modalOptionSettingsBtn}
                         onPress={(e) => {
                           e.stopPropagation();
-                          onClose();
+                          handleModalClose();
                           router.push('/printer-settings');
                         }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -1128,7 +1143,7 @@ export default function ReceiptShareModal({
                     {/* Cancel Button */}
                     <TouchableOpacity
                       style={[styles.modalCancelBtn, isSharing && { opacity: 0.4 }]}
-                      onPress={onClose}
+                      onPress={handleModalClose}
                       activeOpacity={0.7}
                       disabled={isSharing}
                     >

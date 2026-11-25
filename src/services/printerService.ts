@@ -474,7 +474,7 @@ class PrinterService {
     return TinyPrinter.enableBluetooth();
   }
 
-  public async autoConnect(): Promise<boolean> {
+  public async autoConnect(timeoutMs: number = 3500): Promise<boolean> {
     if (this.state.connectedDevice && this.state.connectionStatus === 'connected') {
       return true;
     }
@@ -487,9 +487,21 @@ class PrinterService {
       if (!ok) return false;
 
       await this.initSdk();
-      return await this.connect(saved);
+
+      const connectPromise = this.connect(saved);
+      const timeoutPromise = new Promise<boolean>((_, reject) =>
+        setTimeout(() => reject(new Error('Auto-connect timed out')), timeoutMs)
+      );
+
+      return await Promise.race([connectPromise, timeoutPromise]);
     } catch (e) {
       console.warn('[PrinterService] Auto-connect to saved printer failed:', e);
+      if (this.state.connectionStatus === 'connecting') {
+        try {
+          TinyPrinter.disconnect(saved.address);
+        } catch {}
+        this.updateState({ connectionStatus: 'disconnected', connectedDevice: null });
+      }
       return false;
     }
   }

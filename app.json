@@ -3,7 +3,7 @@
     "name": "SE PAY",
     "slug": "TapToPay",
     "scheme": "sepay",
-    "version": "2.0",
+    "version": "2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.setaxibrokers.sepay",
       "appleTeamId": "4M454SF48R",
-      "buildNumber": "16",
+      "buildNumber": "17",
       "entitlements": {
         "com.apple.developer.proximity-reader.payment.acceptance": true
       },
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.syscentric.taptopay",
-      "versionCode": 16,
+      "versionCode": 17,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
